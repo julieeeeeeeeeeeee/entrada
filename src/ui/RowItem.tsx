@@ -3,7 +3,7 @@ import { memo, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { C, F } from '../theme';
-import type { Row, Section } from '../types';
+import type { FileRef, Row, Section } from '../types';
 import { Avatar } from './parts';
 
 interface Props {
@@ -12,6 +12,7 @@ interface Props {
   onOpen: (r: Row) => void;
   onRight: (r: Row) => void; // deslizar pra direita: arquivar (Entrada) ou restaurar/desbloquear
   onLeft: (r: Row) => void; // deslizar pra esquerda: bloquear (só na Entrada)
+  onFile: (f: FileRef) => void; // tocar no anexo abre o arquivo
 }
 
 function Action({ color, align, children }: { color: string; align: 'left' | 'right'; children: ReactNode }) {
@@ -22,9 +23,9 @@ function Action({ color, align, children }: { color: string; align: 'left' | 'ri
   );
 }
 
-function RowItemBase({ row, sec, onOpen, onRight, onLeft }: Props) {
+function RowItemBase({ row, sec, onOpen, onRight, onLeft, onFile }: Props) {
   const body = (
-    <Pressable onPress={() => onOpen(row)} style={s.row}>
+    <Pressable onPress={() => onOpen(row)} style={({ pressed }) => [s.row, pressed && { backgroundColor: C.s1 }]}>
       <Avatar name={row.name} cat={row.cat} email={row.email} size={42} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <View style={s.l1}>
@@ -39,10 +40,10 @@ function RowItemBase({ row, sec, onOpen, onRight, onLeft }: Props) {
         <Text style={s.pv} numberOfLines={1}>{row.snippet}</Text>
         {row.files.length > 0 && (
           <View style={s.att}>
-            <View style={s.chip}>
+            <Pressable style={({ pressed }) => [s.chip, pressed && { opacity: 0.6 }]} onPress={() => onFile(row.files[0])} hitSlop={6}>
               <View style={s.chipIc}><FileIcon size={14} color="#fff" weight="fill" /></View>
               <Text style={s.chipTx} numberOfLines={1}>{row.files[0].name}</Text>
-            </View>
+            </Pressable>
             {row.files.length > 1 && <Text style={s.more}>+{row.files.length - 1}</Text>}
           </View>
         )}

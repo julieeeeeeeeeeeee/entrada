@@ -1,10 +1,12 @@
 import { ArrowsClockwise, CaretLeft, DownloadSimple, SignOut } from 'phosphor-react-native';
-import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { C, F } from '../theme';
 import type { Account } from '../types';
-import { IconBtn } from '../ui/parts';
+import { Avatar, IconBtn } from '../ui/parts';
+import { photoCount } from '../photos';
+import { disableNotify, enableNotify, notifyEnabled } from '../notify';
 import { checkUpdate, currentVersion, downloadAndInstall, type Release } from '../update';
 
 interface Props {
@@ -19,6 +21,16 @@ export function Settings({ account, demo, found, onClose, onSignOut }: Props) {
   const [status, setStatus] = useState(found ? `Versão ${found.version} disponível.` : '');
   const [rel, setRel] = useState<Release | null>(found);
   const [busy, setBusy] = useState(false);
+  const [notif, setNotif] = useState(false);
+  const [notifMsg, setNotifMsg] = useState('');
+  useEffect(() => { notifyEnabled().then(setNotif); }, []);
+  const toggleNotif = async (on: boolean) => {
+    if (on) {
+      const ok = await enableNotify();
+      setNotif(ok);
+      setNotifMsg(ok ? '' : 'Permissão negada. Ative as notificações do Entrada nas configurações do Android.');
+    } else { await disableNotify(); setNotif(false); setNotifMsg(''); }
+  };
 
   const check = async () => {
     setBusy(true); setStatus('Buscando…');
@@ -52,9 +64,33 @@ export function Settings({ account, demo, found, onClose, onSignOut }: Props) {
 
       <View style={s.card}>
         <Text style={s.k}>Conta</Text>
-        <Text style={s.v}>{demo ? 'Modo demonstração' : account?.email || '—'}</Text>
-        {!demo && !!account?.name && <Text style={s.sub}>{account.name}</Text>}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 6 }}>
+          {!demo && !!account && <Avatar name={account.name} cat="pessoas" email={account.email} size={52} />}
+          <View style={{ flex: 1 }}>
+            <Text style={[s.v, { marginTop: 0 }]}>{demo ? 'Modo demonstração' : account?.email || '—'}</Text>
+            {!demo && !!account?.name && <Text style={s.sub}>{account.name}</Text>}
+          </View>
+        </View>
       </View>
+
+      {!demo && (
+        <View style={s.card}>
+          <Text style={s.k}>Fotos dos contatos</Text>
+          <Text style={s.v}>{photoCount()} carregadas</Text>
+          <Text style={s.sub}>{photoCount() === 0 ? 'Nenhuma ainda. Saia da conta e entre de novo, aceitando o acesso aos contatos.' : 'Vindas dos seus contatos do Google.'}</Text>
+        </View>
+      )}
+
+      {!demo && (
+        <View style={s.card}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={s.k}>Notificações</Text>
+            <Switch value={notif} onValueChange={toggleNotif} trackColor={{ true: C.ac, false: C.s2 }} thumbColor="#fff" />
+          </View>
+          <Text style={s.sub}>Avisa de novos e-mails. O Android deixa o app conferir a cada uns 15 minutos (não é na hora).</Text>
+          {!!notifMsg && <Text style={[s.status, { color: '#ffb4b8' }]}>{notifMsg}</Text>}
+        </View>
+      )}
 
       <View style={s.card}>
         <Text style={s.k}>Versão</Text>

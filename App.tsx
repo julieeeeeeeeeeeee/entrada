@@ -2,8 +2,9 @@ import {
   Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold, useFonts,
 } from '@expo-google-fonts/manrope';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { BackHandler, Pressable, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import * as Notifications from 'expo-notifications';
+import { AppState, BackHandler, Pressable, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { deleteSaved, openFile, saveFiles } from './src/files';
@@ -18,7 +19,8 @@ import { Reader } from './src/screens/Reader';
 import { Settings } from './src/screens/Settings';
 import { useMail } from './src/state';
 import { C, F } from './src/theme';
-import { setPhotos } from './src/photos';
+import { ensureNotify } from './src/notify';
+import { addPhotos, setPhotos } from './src/photos';
 import { checkUpdate, type Release } from './src/update';
 import type { Account, Draft, FileRef, Provider, Row } from './src/types';
 import { Slide, Toast, UndoBar } from './src/ui/parts';
@@ -71,7 +73,30 @@ function MailApp({ provider, onSignOut }: { provider: Provider; onSignOut: () =>
   const [saved, setSaved] = useState<Set<string>>(new Set());
   const [update, setUpdate] = useState<Release | null>(null);
 
-  useEffect(() => { provider.account().then(setAccount).catch(() => {}); }, [provider]);
+  useEffect(() => {
+    provider.account().then((a) => {
+      setAccount(a);
+      if (a.picture) addPhotos({ [a.email.toLowerCase()]: a.picture }); // a sua foto aparece nos seus e-mails
+    }).catch(() => {});
+  }, [provider]);
+  useEffect(() => { if (provider.kind === 'gmail') ensureNotify(); }, [provider]);
+
+  // ao voltar pro app, a lista se atualiza sozinha
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (st) => { if (st === 'active') m.load(true); });
+    return () => sub.remove();
+  }, [m.load]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // tocar numa notificação abre a conversa
+  const lastResp = Notifications.useLastNotificationResponse();
+  const handledNotif = useRef<string | null>(null);
+  useEffect(() => {
+    const d = lastResp?.notification.request.content.data as { threadId?: string; subject?: string } | undefined;
+    const id = lastResp?.notification.request.identifier;
+    if (!d?.threadId || !id || handledNotif.current === id) return;
+    handledNotif.current = id;
+    setReader({ id: d.threadId, kind: 'mail', name: '', email: '', subject: d.subject ?? '', snippet: '', time: '', unread: false, count: 0, files: [], cat: 'pessoas' });
+  }, [lastResp]);
   useEffect(() => { checkUpdate().then(setUpdate).catch(() => {}); }, []);
   useEffect(() => {
     provider.photos?.().then(setPhotos).catch((e) => {
@@ -126,7 +151,7 @@ function MailApp({ provider, onSignOut }: { provider: Provider; onSignOut: () =>
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
-      <Inbox m={m} onOpen={open} onCompose={() => openCompose()} onSettings={() => setSettings(true)} />
+      <Inbox m={m} onOpen={open} onCompose={() => openCompose()} onSettings={() => setSettings(true)} onFile={(f) => { m.toast('Abrindo anexo…'); openAttachment(f); }} />
 
       {reader && (
         <Slide>

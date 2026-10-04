@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import * as Haptics from 'expo-haptics';
 import type { Draft, Provider, Row, Section } from './types';
 
 export interface Bar {
@@ -84,6 +85,7 @@ export function useMail(provider: Provider) {
 
   function undoable(msg: string, commit: () => Promise<void> | void, undo: () => void, secs = 5, countdown = false) {
     flush();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     pending.current = commit;
     let left = secs;
     const key = ++barKey.current;

@@ -39,6 +39,8 @@ export interface Msg {
   files: FileRef[];
   messageIdHeader?: string;
   mine?: boolean;
+  html?: string; // versão HTML do e-mail (quando existe)
+  unsubscribe?: string; // cabeçalho List-Unsubscribe
 }
 
 export interface Draft {
@@ -53,6 +55,7 @@ export interface Draft {
 export interface Account {
   email: string;
   name: string;
+  picture?: string; // foto da conta do Google
 }
 
 /** Tudo que o app precisa de uma "fonte de e-mails". Há duas: demo (memória) e Gmail. */

@@ -1,7 +1,8 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Crypto from 'expo-crypto';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Animated, Easing, Image, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { Animated as RNAnimated, Easing, Image, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import Animated, { FadeIn, FadeInDown, FadeOut, SlideInDown, SlideInRight, SlideOutDown, SlideOutRight } from 'react-native-reanimated';
 import type { Bar } from '../state';
 import { C, F } from '../theme';
 import type { CatKey } from '../types';
@@ -60,14 +61,14 @@ export function Avatar({ name, cat, email = '', size = 46 }: { name: string; cat
 
   if (uri && !failed.has(uri)) {
     return (
-      <View style={[base, { backgroundColor: person || uri === contactPhoto ? C.s2 : '#fff', alignItems: 'center', justifyContent: 'center' }]}>
+      <Animated.View entering={FadeIn.duration(260)} style={[base, { backgroundColor: person || uri === contactPhoto ? C.s2 : '#fff', alignItems: 'center', justifyContent: 'center' }]}>
         <Image
           source={{ uri }}
           onError={() => { failed.add(uri); bump((n) => n + 1); }}
           style={person || uri === contactPhoto ? { width: size, height: size } : { width: size * 0.62, height: size * 0.62 }}
           resizeMode={person || uri === contactPhoto ? 'cover' : 'contain'}
         />
-      </View>
+      </Animated.View>
     );
   }
   return (
@@ -88,41 +89,43 @@ export function IconBtn({ children, onPress, style }: { children: ReactNode; onP
 }
 
 export function UndoBar({ bar }: { bar: Bar | null }) {
-  const w = useRef(new Animated.Value(1)).current;
+  const w = useRef(new RNAnimated.Value(1)).current;
   useEffect(() => {
     if (!bar) return;
     w.setValue(1);
-    Animated.timing(w, { toValue: 0, duration: bar.secs * 1000, easing: Easing.linear, useNativeDriver: false }).start();
+    RNAnimated.timing(w, { toValue: 0, duration: bar.secs * 1000, easing: Easing.linear, useNativeDriver: false }).start();
   }, [bar?.key]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!bar) return null;
   return (
-    <View style={s.undo}>
+    <Animated.View entering={SlideInDown.springify().damping(18).stiffness(220)} exiting={FadeOut.duration(140)} style={s.undo}>
       <Text style={s.undoMsg} numberOfLines={1}>{bar.countdown ? `${bar.msg} · ${bar.left}s` : bar.msg}</Text>
       <Pressable onPress={bar.undo} hitSlop={8}><Text style={s.undoBtn}>Desfazer</Text></Pressable>
-      <Animated.View style={[s.undoBar, { width: w.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) }]} />
-    </View>
+      <RNAnimated.View style={[s.undoBar, { width: w.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) }]} />
+    </Animated.View>
   );
 }
 
 export function Toast({ note }: { note: string | null }) {
   if (!note) return null;
   return (
-    <View style={s.toast} pointerEvents="none">
+    <Animated.View entering={FadeInDown.duration(200)} exiting={FadeOut.duration(160)} style={s.toast} pointerEvents="none">
       <Text style={s.toastTx}>{note}</Text>
-    </View>
+    </Animated.View>
   );
 }
 
-/** Tela que entra deslizando por cima (leitura, escrever, anexo...). */
+/** Tela que entra e sai deslizando por cima (leitura, escrever, anexo...). */
 export function Slide({ children, from = 'right' }: { children: ReactNode; from?: 'right' | 'bottom' }) {
-  const t = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    Animated.timing(t, { toValue: 0, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
-  }, [t]);
-  const tr = from === 'right'
-    ? { translateX: t.interpolate({ inputRange: [0, 1], outputRange: [0, 420] }) }
-    : { translateY: t.interpolate({ inputRange: [0, 1], outputRange: [0, 900] }) };
-  return <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: C.bg, transform: [tr] }]}>{children}</Animated.View>;
+  const right = from === 'right';
+  return (
+    <Animated.View
+      entering={(right ? SlideInRight : SlideInDown).duration(280)}
+      exiting={(right ? SlideOutRight : SlideOutDown).duration(220)}
+      style={[StyleSheet.absoluteFill, { backgroundColor: C.bg }]}
+    >
+      {children}
+    </Animated.View>
+  );
 }
 
 const s = StyleSheet.create({

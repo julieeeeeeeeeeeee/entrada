@@ -14,19 +14,37 @@ export function utf8Encode(s: string): number[] {
   return out;
 }
 
+/** UTF-8 -> texto. Bytes inválidos viram "�" em vez de quebrar. */
 export function utf8Decode(b: number[]): string {
   let s = '';
+  const cont = (k: number) => k < b.length && (b[k] & 0xc0) === 0x80;
   for (let i = 0; i < b.length; ) {
     const c = b[i++];
-    if (c < 0x80) s += String.fromCharCode(c);
-    else if (c < 0xe0) s += String.fromCharCode(((c & 31) << 6) | (b[i++] & 63));
-    else if (c < 0xf0) s += String.fromCharCode(((c & 15) << 12) | ((b[i++] & 63) << 6) | (b[i++] & 63));
-    else {
-      const cp = ((c & 7) << 18) | ((b[i++] & 63) << 12) | ((b[i++] & 63) << 6) | (b[i++] & 63);
-      s += String.fromCodePoint(cp);
+    if (c < 0x80) { s += String.fromCharCode(c); continue; }
+    let need = 0, cp = 0;
+    if (c >= 0xc2 && c < 0xe0) { need = 1; cp = c & 31; }
+    else if (c >= 0xe0 && c < 0xf0) { need = 2; cp = c & 15; }
+    else if (c >= 0xf0 && c < 0xf5) { need = 3; cp = c & 7; }
+    else { s += '�'; continue; }
+    let ok = true;
+    for (let k = 0; k < need; k++) {
+      if (cont(i)) cp = (cp << 6) | (b[i++] & 63);
+      else { ok = false; break; }
     }
+    s += ok && cp <= 0x10ffff && !(cp >= 0xd800 && cp < 0xe000) ? String.fromCodePoint(cp) : '�';
   }
   return s;
+}
+
+/** bytes -> texto, respeitando o charset declarado no e-mail (utf-8 ou latin1/windows-1252). */
+export function decodeBytes(b: number[], charset = 'utf-8'): string {
+  const cs = charset.toLowerCase();
+  if (cs.includes('8859') || cs.includes('1252') || cs === 'latin1' || cs === 'us-ascii' || cs === 'ascii') {
+    let s = '';
+    for (const c of b) s += String.fromCharCode(c);
+    return s;
+  }
+  return utf8Decode(b);
 }
 
 export function b64encode(bytes: number[]): string {
@@ -41,7 +59,7 @@ export function b64encode(bytes: number[]): string {
 }
 
 export function b64decode(s: string): number[] {
-  const clean = s.replace(/[^A-Za-z0-9+/]/g, '');
+  const clean = s.replace(/-/g, '+').replace(/_/g, '/').replace(/[^A-Za-z0-9+/]/g, '');
   const out: number[] = [];
   for (let i = 0; i < clean.length; i += 4) {
     const n = [0, 1, 2, 3].map((k) => (i + k < clean.length ? B64.indexOf(clean[i + k]) : -1));

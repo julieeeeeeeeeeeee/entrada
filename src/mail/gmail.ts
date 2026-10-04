@@ -2,7 +2,7 @@
 import * as FS from 'expo-file-system/legacy';
 import { classify } from '../classify';
 import type { Account, Draft, FileRef, Msg, Provider, Row, Section } from '../types';
-import { b64urlEncode, b64encode, b64urlToB64, b64urlToString, fmtDateLong, fmtTime, parseAddr, stripHtml, utf8Encode } from '../util';
+import { b64urlEncode, b64encode, b64decode, b64urlToB64, decodeBytes, fmtDateLong, fmtTime, parseAddr, stripHtml, utf8Encode } from '../util';
 import { getAccessToken, userInfo } from './auth';
 
 const BASE = 'https://gmail.googleapis.com/gmail/v1/users/me';
@@ -49,17 +49,52 @@ function collectFiles(m: any): FileRef[] {
   return out;
 }
 
+const partHeader = (p: any, n: string): string =>
+  p.headers?.find((h: any) => h.name.toLowerCase() === n)?.value ?? '';
+
+/** texto de uma parte do e-mail, no charset que ela declara (utf-8, latin1...) */
+function decodePart(p: any): string {
+  const cs = /charset="?([\w-]+)"?/i.exec(partHeader(p, 'content-type'))?.[1] ?? 'utf-8';
+  return decodeBytes(b64decode(p.body.data), cs);
+}
+
+function findPart(x: any, mime: string): string | null {
+  if (x?.mimeType === mime && x.body?.data) return decodePart(x);
+  for (const c of x?.parts ?? []) {
+    const r = findPart(c, mime);
+    if (r !== null) return r;
+  }
+  return null;
+}
+
 function bodyText(p: any): string {
   if (!p) return '';
-  const find = (x: any, mime: string): string | null => {
-    if (x.mimeType === mime && x.body?.data) return b64urlToString(x.body.data);
-    for (const c of x.parts ?? []) {
-      const r = find(c, mime);
-      if (r !== null) return r;
-    }
-    return null;
+  const plain = findPart(p, 'text/plain');
+  if (plain && plain.trim() && !/^\s*https?:\/\/\S+\s*$/.test(plain)) return plain;
+  const html = findPart(p, 'text/html');
+  return html !== null ? stripHtml(html) : plain ?? '';
+}
+
+/** imagens embutidas no e-mail (cid:) -> endereço de dados, pra aparecerem no HTML */
+async function inlineImages(m: any): Promise<Record<string, string>> {
+  const found: { cid: string; mime: string; data?: string; att?: string; size: number }[] = [];
+  const walk = (p: any) => {
+    if (!p) return;
+    const cid = partHeader(p, 'content-id').replace(/[<>]/g, '').trim();
+    if (cid && String(p.mimeType).startsWith('image/')) found.push({ cid, mime: p.mimeType, data: p.body?.data, att: p.body?.attachmentId, size: p.body?.size ?? 0 });
+    (p.parts ?? []).forEach(walk);
   };
-  return find(p, 'text/plain') ?? (find(p, 'text/html') !== null ? stripHtml(find(p, 'text/html')!) : '');
+  walk(m.payload);
+  const out: Record<string, string> = {};
+  await pool(found.filter((f) => f.size < 600_000).slice(0, 8), 3, async (f) => {
+    try {
+      let b64: string | null = null;
+      if (f.data) b64 = b64urlToB64(f.data);
+      else if (f.att) b64 = b64urlToB64((await g(`/messages/${m.id}/attachments/${f.att}`)).data);
+      if (b64) out[f.cid] = `data:${f.mime};base64,${b64}`;
+    } catch { /* imagem que não baixou fica de fora */ }
+  });
+  return out;
 }
 
 function threadToRow(t: any, sec: Section, self: string): Row {
@@ -179,14 +214,20 @@ export function createGmailProvider(): Provider {
     },
     async thread(row) {
       const t = await g(`/threads/${row.id}?format=full`);
-      return (t.messages as any[]).map((m): Msg => {
+      return Promise.all((t.messages as any[]).map(async (m): Promise<Msg> => {
         const from = parseAddr(header(m, 'From'));
+        let html = findPart(m.payload, 'text/html') ?? undefined;
+        if (html && /cid:/i.test(html)) {
+          const imgs = await inlineImages(m);
+          html = html.replace(/cid:([^"'\s)>]+)/gi, (all, id) => imgs[decodeURIComponent(id)] ?? imgs[id] ?? all);
+        }
         return {
           id: m.id, name: from.name, email: from.email, to: header(m, 'To'),
-          date: fmtDateLong(Number(m.internalDate)), text: bodyText(m.payload), files: collectFiles(m),
+          date: fmtDateLong(Number(m.internalDate)), text: bodyText(m.payload), html, files: collectFiles(m),
+          unsubscribe: header(m, 'List-Unsubscribe') || undefined,
           messageIdHeader: header(m, 'Message-ID') || header(m, 'Message-Id'), mine: from.email === self.toLowerCase(),
         };
-      });
+      }));
     },
     archive: (row) => modify(row.id, [], ['INBOX']),
     trash: (row) => g(`/threads/${row.id}/trash`, { method: 'POST' }),

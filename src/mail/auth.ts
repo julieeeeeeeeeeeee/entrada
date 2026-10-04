@@ -93,10 +93,11 @@ export async function signOut(): Promise<void> {
   await save(null);
 }
 
-export async function userInfo(): Promise<{ email: string; name: string }> {
+export async function userInfo(): Promise<{ email: string; name: string; picture?: string }> {
   const r = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
     headers: { Authorization: `Bearer ${await getAccessToken()}` },
   });
   const j = await r.json();
-  return { email: j.email ?? '', name: j.name ?? j.email ?? '' };
+  const picture = typeof j.picture === 'string' ? j.picture.replace(/=s\d+-c$/, '=s192-c') : undefined;
+  return { email: j.email ?? '', name: j.name ?? j.email ?? '', picture };
 }

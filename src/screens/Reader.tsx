@@ -2,14 +2,17 @@ import {
   Archive, ArrowBendUpLeft, ArrowBendUpRight, CaretDown, CaretLeft, CheckCircle, DotsThree, DownloadSimple, EnvelopeSimple, Trash,
 } from 'phosphor-react-native';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Mail } from '../state';
 import { C, F } from '../theme';
 import type { Draft, FileRef, Msg, Row } from '../types';
 import { fmtSize } from '../util';
 import { fileKind } from '../ui/icons';
+import { HtmlBody } from '../ui/HtmlBody';
 import { Avatar, IconBtn } from '../ui/parts';
+import { usePhoto } from '../photos';
 
 interface Props {
   m: Mail;
@@ -64,7 +67,7 @@ export function Reader({ m, row, onClose, onCompose, onFile, onSaveAll, saved }:
         {msgs?.map((msg, i) => {
           const expanded = i === msgs.length - 1 || open[msg.id];
           return (
-            <View key={msg.id} style={s.msg}>
+            <Animated.View key={msg.id} entering={FadeInDown.duration(260).delay(Math.min(i, 5) * 50)} style={s.msg}>
               <Pressable style={s.who} onPress={() => setOpen((o) => ({ ...o, [msg.id]: !o[msg.id] }))}>
                 <Avatar name={msg.name} cat={msg.mine ? 'pessoas' : row.cat} email={msg.email} size={44} />
                 <View style={{ flex: 1 }}>
@@ -84,12 +87,13 @@ export function Reader({ m, row, onClose, onCompose, onFile, onSaveAll, saved }:
               {expanded ? (
                 <>
                   {msg.files.length > 0 && <Attachments files={msg.files} saved={saved} onFile={onFile} onSaveAll={onSaveAll} />}
-                  <Text style={s.body} selectable>{msg.text || '(sem texto)'}</Text>
+                  {msg.unsubscribe && <Unsub header={msg.unsubscribe} onCompose={onCompose} />}
+                  <Body msg={msg} />
                 </>
               ) : (
                 <Text style={s.snip} numberOfLines={2}>{msg.text}</Text>
               )}
-            </View>
+            </Animated.View>
           );
         })}
       </ScrollView>
@@ -102,6 +106,29 @@ export function Reader({ m, row, onClose, onCompose, onFile, onSaveAll, saved }:
       </View>
     </SafeAreaView>
   );
+}
+
+/** "Cancelar inscrição" a partir do cabeçalho List-Unsubscribe (link ou e-mail) */
+function Unsub({ header, onCompose }: { header: string; onCompose: (d: Partial<Draft>) => void }) {
+  const url = /<(https?:[^>]+)>/i.exec(header)?.[1];
+  const mail = /<mailto:([^>?]+)/i.exec(header)?.[1];
+  if (!url && !mail) return null;
+  return (
+    <Pressable
+      style={s.unsub}
+      onPress={() => (url ? Linking.openURL(url).catch(() => {}) : onCompose({ to: mail, subject: 'Cancelar inscrição', body: 'Por favor, cancele minha inscrição.' }))}
+    >
+      <Text style={s.unsubTx}>Cancelar inscrição desta lista</Text>
+    </Pressable>
+  );
+}
+
+/** Corpo do e-mail. Imagens da internet só abrem sozinhas se o remetente for um contato seu. */
+function Body({ msg }: { msg: Msg }) {
+  const known = !!usePhoto(msg.email);
+  return msg.html
+    ? <HtmlBody html={msg.html} autoImages={!!msg.mine || known} />
+    : <Text style={s.body} selectable>{msg.text || '(sem texto)'}</Text>;
 }
 
 function BarBtn({ label, onPress, children }: { label: string; onPress: () => void; children: React.ReactNode }) {
@@ -145,6 +172,8 @@ const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
   nav: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 10, height: 60 },
   subject: { color: C.tx, fontFamily: F.bold, fontSize: 26, lineHeight: 32, letterSpacing: -0.5, marginTop: 6, marginBottom: 14 },
+  unsub: { alignSelf: 'flex-start', backgroundColor: C.s1, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 9, marginBottom: 14 },
+  unsubTx: { color: C.acText, fontFamily: F.semi, fontSize: 13 },
   count: { color: C.sec, fontFamily: F.semi, fontSize: 13, marginBottom: 14 },
   err: { color: '#ffb4b8', fontFamily: F.med, marginTop: 20 },
   msg: { marginBottom: 22 },

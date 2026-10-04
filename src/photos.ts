@@ -6,7 +6,7 @@ let version = 0;
 const listeners = new Set<() => void>();
 
 export function setPhotos(next: Record<string, string>) {
-  map = next;
+  map = { ...map, ...next }; // soma ao que já tem (ex.: a sua própria foto)
   version++;
   listeners.forEach((l) => l());
 }
@@ -18,3 +18,8 @@ export function usePhoto(email: string): string | undefined {
   );
   return email ? map[email.trim().toLowerCase()] : undefined;
 }
+
+export const addPhotos = setPhotos;
+
+/** quantos contatos com foto foram carregados (para mostrar em Configurações) */
+export const photoCount = () => Object.keys(map).length;
