@@ -66,7 +66,7 @@ export function Reader({ m, row, onClose, onCompose, onFile, onSaveAll, saved }:
           return (
             <View key={msg.id} style={s.msg}>
               <Pressable style={s.who} onPress={() => setOpen((o) => ({ ...o, [msg.id]: !o[msg.id] }))}>
-                <Avatar name={msg.name} cat={msg.mine ? 'pessoas' : row.cat} size={44} />
+                <Avatar name={msg.name} cat={msg.mine ? 'pessoas' : row.cat} email={msg.email} size={44} />
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <Text style={s.name}>{msg.mine ? 'Você' : msg.name}</Text>

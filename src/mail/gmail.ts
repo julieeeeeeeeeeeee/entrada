@@ -7,7 +7,10 @@ import { getAccessToken, userInfo } from './auth';
 
 const BASE = 'https://gmail.googleapis.com/gmail/v1/users/me';
 
-async function g(path: string, init: { method?: string; body?: unknown } = {}): Promise<any> {
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** chama o Gmail; se bater na cota (429), espera um pouco e tenta de novo */
+async function g(path: string, init: { method?: string; body?: unknown } = {}, tries = 3): Promise<any> {
   const r = await fetch(BASE + path, {
     method: init.method ?? 'GET',
     headers: { Authorization: `Bearer ${await getAccessToken()}`, 'Content-Type': 'application/json' },
@@ -15,7 +18,14 @@ async function g(path: string, init: { method?: string; body?: unknown } = {}): 
   });
   if (r.status === 204) return null;
   const j = await r.json().catch(() => null);
-  if (!r.ok) throw new Error(j?.error?.message ?? `Gmail ${r.status}`);
+  if (!r.ok) {
+    const quota = r.status === 429 || (r.status === 403 && /quota|rate/i.test(j?.error?.message ?? ''));
+    if (quota && tries > 1) {
+      await sleep(1500 * (4 - tries));
+      return g(path, init, tries - 1);
+    }
+    throw new Error(j?.error?.message ?? `Gmail ${r.status}`);
+  }
   return j;
 }
 
@@ -115,7 +125,7 @@ export function createGmailProvider(): Provider {
     if (sec === 'rascunhos') {
       const j = await g('/drafts?maxResults=30');
       const drafts: any[] = j?.drafts ?? [];
-      return pool(drafts, 6, async (d) => {
+      return pool(drafts, 4, async (d) => {
         const full = await g(`/drafts/${d.id}?format=full`);
         const m = full.message;
         const to = header(m, 'To');
@@ -139,17 +149,21 @@ export function createGmailProvider(): Provider {
           subject: f.criteria.from, snippet: 'Remetente bloqueado', time: '', unread: false, count: 0, files: [], cat: 'pessoas' as const,
         }));
     }
-    const params = new URLSearchParams({ maxResults: '30' });
+    const params = new URLSearchParams({ maxResults: '20' });
     let query = q ?? '';
-    if (sec === 'inbox') params.append('labelIds', 'INBOX');
+    // buscando, a Entrada procura em todos os e-mails (como o Gmail faz)
+    if (sec === 'inbox' && !query) params.append('labelIds', 'INBOX');
     if (sec === 'enviados') params.append('labelIds', 'SENT');
     if (sec === 'lixeira') { params.append('labelIds', 'TRASH'); params.set('includeSpamTrash', 'true'); }
     if (sec === 'arquivados') query = `-in:inbox -in:sent -in:trash -in:spam -in:drafts ${query}`.trim();
     if (query) params.set('q', query);
     const j = await g(`/threads?${params}`);
     const ids: string[] = (j?.threads ?? []).map((t: any) => t.id);
-    const threads = await pool(ids, 6, (id) => g(`/threads/${id}?format=full&fields=${encodeURIComponent(LIST_FIELDS)}`));
-    return threads.map((t) => threadToRow(t, sec, self));
+    const threads = await pool(ids, 4, (id) =>
+      g(`/threads/${id}?format=full&fields=${encodeURIComponent(LIST_FIELDS)}`).catch(() => null),
+    );
+    if (ids.length && threads.every((t) => !t)) throw new Error('O Gmail não respondeu. Tente de novo em instantes.');
+    return threads.filter(Boolean).map((t) => threadToRow(t, sec, self));
   };
 
   const modify = (id: string, add: string[], remove: string[]) =>

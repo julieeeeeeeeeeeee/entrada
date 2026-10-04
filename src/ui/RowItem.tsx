@@ -25,7 +25,7 @@ function Action({ color, align, children }: { color: string; align: 'left' | 'ri
 function RowItemBase({ row, sec, onOpen, onRight, onLeft }: Props) {
   const body = (
     <Pressable onPress={() => onOpen(row)} style={s.row}>
-      <Avatar name={row.name} cat={row.cat} />
+      <Avatar name={row.name} cat={row.cat} email={row.email} size={42} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <View style={s.l1}>
           <Text style={s.nm} numberOfLines={1}>{row.name}</Text>
@@ -40,7 +40,7 @@ function RowItemBase({ row, sec, onOpen, onRight, onLeft }: Props) {
         {row.files.length > 0 && (
           <View style={s.att}>
             <View style={s.chip}>
-              <View style={s.chipIc}><FileIcon size={16} color="#fff" weight="fill" /></View>
+              <View style={s.chipIc}><FileIcon size={14} color="#fff" weight="fill" /></View>
               <Text style={s.chipTx} numberOfLines={1}>{row.files[0].name}</Text>
             </View>
             {row.files.length > 1 && <Text style={s.more}>+{row.files.length - 1}</Text>}
@@ -82,21 +82,21 @@ function RowItemBase({ row, sec, onOpen, onRight, onLeft }: Props) {
 export const RowItem = memo(RowItemBase);
 
 const s = StyleSheet.create({
-  row: { flexDirection: 'row', gap: 14, paddingVertical: 17, paddingLeft: 16, paddingRight: 22, backgroundColor: C.bg },
+  row: { flexDirection: 'row', gap: 12, paddingVertical: 10, paddingLeft: 16, paddingRight: 18, backgroundColor: C.bg },
   l1: { flexDirection: 'row', alignItems: 'center' },
   nm: { color: '#d0d0d4', fontFamily: F.med, fontSize: 13.5, flexShrink: 1 },
   th: { marginLeft: 5, minWidth: 20, height: 18, paddingHorizontal: 6, borderRadius: 9, backgroundColor: C.s2, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.line },
   thTx: { color: C.tx2, fontFamily: F.semi, fontSize: 11.5 },
   tm: { marginLeft: 'auto', paddingLeft: 8, color: C.sec, fontFamily: F.med, fontSize: 12.5 },
-  l2: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 },
-  sj: { flex: 1, color: C.tx, fontFamily: F.bold, fontSize: 17, letterSpacing: -0.2 },
+  l2: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2 },
+  sj: { flex: 1, color: C.tx, fontFamily: F.bold, fontSize: 15.5, letterSpacing: -0.2 },
   sjRead: { fontFamily: F.med, color: '#b4b4b9' },
   dot: { width: 9, height: 9, borderRadius: 5, backgroundColor: C.ac },
-  pv: { color: C.sec, fontFamily: F.reg, fontSize: 14, marginTop: 6 },
-  att: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.s1, borderRadius: 24, paddingVertical: 5, paddingLeft: 5, paddingRight: 18, maxWidth: 230 },
-  chipIc: { width: 34, height: 34, borderRadius: 17, backgroundColor: C.ac, alignItems: 'center', justifyContent: 'center' },
-  chipTx: { color: C.tx, fontFamily: F.med, fontSize: 14, flexShrink: 1 },
+  pv: { color: C.sec, fontFamily: F.reg, fontSize: 13.5, marginTop: 2 },
+  att: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.s1, borderRadius: 24, paddingVertical: 3, paddingLeft: 3, paddingRight: 14, maxWidth: 230 },
+  chipIc: { width: 26, height: 26, borderRadius: 13, backgroundColor: C.ac, alignItems: 'center', justifyContent: 'center' },
+  chipTx: { color: C.tx, fontFamily: F.med, fontSize: 13, flexShrink: 1 },
   more: { color: C.sec, fontFamily: F.med, fontSize: 14 },
   actTx: { color: '#fff', fontFamily: F.semi, fontSize: 14 },
 });

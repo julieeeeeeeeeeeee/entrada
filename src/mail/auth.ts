@@ -39,10 +39,14 @@ async function save(s: Session | null) {
 
 export async function hasSession(): Promise<boolean> {
   if (cache) return true;
-  const raw = await SecureStore.getItemAsync(KEY);
-  if (!raw) return false;
-  cache = JSON.parse(raw) as Session;
-  return true;
+  try {
+    const raw = await SecureStore.getItemAsync(KEY);
+    if (!raw) return false;
+    cache = JSON.parse(raw) as Session;
+    return true;
+  } catch {
+    return false; // sem armazenamento seguro (ex.: teste no navegador)
+  }
 }
 
 export async function signIn(): Promise<void> {

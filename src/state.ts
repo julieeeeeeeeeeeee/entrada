@@ -60,8 +60,14 @@ export function useMail(provider: Provider) {
   useEffect(() => { load(); }, [load]);
 
   const setSec = (s: Section) => { secRef.current = s; setSecState(s); setRows([]); load(); };
-  const setQuery = (q: string) => { queryRef.current = q; setQueryState(q); };
-  const search = () => load();
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const setQuery = (q: string) => {
+    queryRef.current = q;
+    setQueryState(q);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => load(), 450); // busca sozinha enquanto você digita
+  };
+  const search = () => { if (searchTimer.current) clearTimeout(searchTimer.current); load(); };
 
   const flush = useCallback(() => {
     if (timer.current) { clearInterval(timer.current); timer.current = null; }

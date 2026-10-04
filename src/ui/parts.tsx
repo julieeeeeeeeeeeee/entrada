@@ -1,6 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useRef, type ReactNode } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import * as Crypto from 'expo-crypto';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Animated, Easing, Image, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import type { Bar } from '../state';
 import { C, F } from '../theme';
 import type { CatKey } from '../types';
@@ -12,15 +13,62 @@ const PAL: [string, string][] = [
   ['#2dd4bf', '#0f766e'], ['#38bdf8', '#0369a1'], ['#a78bfa', '#5b21b6'], ['#94a3b8', '#334155'],
 ];
 
-/** Sem foto: pessoa = iniciais coloridas (cor fixa pelo nome). Qualquer outro remetente = ícone cinza da categoria. */
-export function Avatar({ name, cat, size = 46 }: { name: string; cat: CatKey; size?: number }) {
+const SECOND = new Set(['com', 'org', 'net', 'gov', 'edu']);
+function rootDomain(email: string): string {
+  const d = email.split('@')[1]?.toLowerCase();
+  if (!d) return '';
+  const p = d.split('.');
+  if (p.length <= 2) return d;
+  return p[p.length - 1].length === 2 && SECOND.has(p[p.length - 2]) ? p.slice(-3).join('.') : p.slice(-2).join('.');
+}
+const failed = new Set<string>(); // fontes de imagem que não existem (evita tentar de novo)
+const hashes = new Map<string, string>();
+
+/**
+ * Foto do remetente. Pessoa: Gravatar (se a pessoa tiver). Empresa: logo do site dela.
+ * Sem imagem: pessoa = iniciais coloridas, empresa = ícone cinza da categoria.
+ */
+export function Avatar({ name, cat, email = '', size = 46 }: { name: string; cat: CatKey; email?: string; size?: number }) {
   const person = cat === 'pessoas';
+  const [uri, setUri] = useState<string | null>(null);
+  const [, bump] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    setUri(null);
+    if (!email) return;
+    if (person) {
+      const e = email.trim().toLowerCase();
+      const known = hashes.get(e);
+      const done = (h: string) => { if (alive) setUri(`https://gravatar.com/avatar/${h}?s=160&d=404`); };
+      if (known) done(known);
+      else Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, e).then((h) => { hashes.set(e, h); done(h); }).catch(() => {});
+    } else {
+      const d = rootDomain(email);
+      if (d) setUri(`https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://${d}&size=128`);
+    }
+    return () => { alive = false; };
+  }, [email, person]);
+
   const h = [...name].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
   const colors = person ? PAL[h % PAL.length] : (['#4b4e5a', '#31333c'] as [string, string]);
   const Icon = CAT[cat].Icon;
+  const base = { width: size, height: size, borderRadius: size / 2, overflow: 'hidden' as const };
+
+  if (uri && !failed.has(uri)) {
+    return (
+      <View style={[base, { backgroundColor: person ? C.s2 : '#fff', alignItems: 'center', justifyContent: 'center' }]}>
+        <Image
+          source={{ uri }}
+          onError={() => { failed.add(uri); bump((n) => n + 1); }}
+          style={person ? { width: size, height: size } : { width: size * 0.62, height: size * 0.62 }}
+          resizeMode={person ? 'cover' : 'contain'}
+        />
+      </View>
+    );
+  }
   return (
-    <LinearGradient colors={colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-      style={{ width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center' }}>
+    <LinearGradient colors={colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[base, { alignItems: 'center', justifyContent: 'center' }]}>
       {person
         ? <Text style={{ color: '#fff', fontFamily: F.bold, fontSize: size * 0.33 }}>{initials(name)}</Text>
         : <Icon size={size * 0.48} color="#d9dce4" />}
