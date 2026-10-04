@@ -200,7 +200,7 @@ function BarBtn({ label, onPress, children }: { label: string; onPress: () => vo
   return (
     <Pressable onPress={onPress} style={s.barBtn}>
       {children}
-      <Text style={s.barLb}>{label}</Text>
+      <Text style={s.barLb} numberOfLines={1}>{label}</Text>
     </Pressable>
   );
 }
@@ -258,8 +258,8 @@ const s = StyleSheet.create({
   fi: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#3b3d47', alignItems: 'center', justifyContent: 'center' },
   fn: { color: C.tx, fontFamily: F.semi, fontSize: 14.5 },
   fm: { color: C.sec, fontFamily: F.med, fontSize: 12.5, marginTop: 1 },
-  bar: { position: 'absolute', left: 48, right: 48, bottom: 24, height: 68, borderRadius: 34, backgroundColor: '#26272c', borderWidth: 1, borderColor: C.line, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', elevation: 10 },
-  barBtn: { alignItems: 'center', gap: 4, width: 64 },
+  bar: { position: 'absolute', left: 24, right: 24, bottom: 24, height: 68, borderRadius: 34, backgroundColor: '#26272c', borderWidth: 1, borderColor: C.line, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', elevation: 10 },
+  barBtn: { alignItems: 'center', gap: 4, flex: 1 },
   qc: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.s1, borderRadius: 18, padding: 14, paddingLeft: 18 },
   qk: { color: C.sec, fontFamily: F.semi, fontSize: 12, letterSpacing: 0.5, textTransform: 'uppercase' },
   qcode: { color: C.tx, fontFamily: F.bold, fontSize: 28, letterSpacing: 3, marginTop: 2 },
