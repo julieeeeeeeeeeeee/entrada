@@ -150,6 +150,23 @@ function buildRaw(d: Draft): string {
   return b64urlEncode(utf8Encode(lines.join('\r\n') + '\r\n\r\n' + body));
 }
 
+/** lê os convidados de um convite (arquivo .ics do Google Agenda) */
+function invitePeople(ics: string | null): Msg['people'] {
+  if (!ics) return undefined;
+  const out: NonNullable<Msg['people']> = [];
+  const seen = new Set<string>();
+  for (const line of ics.replace(/\r?\n[ \t]/g, '').split(/\r?\n/)) {
+    const org = line.startsWith('ORGANIZER');
+    if (!org && !line.startsWith('ATTENDEE')) continue;
+    const email = /mailto:([^\s;]+)/i.exec(line)?.[1]?.toLowerCase();
+    if (!email || seen.has(email) || email.includes('calendar.google.com')) continue;
+    seen.add(email);
+    const cn = /CN=("([^"]*)"|[^;:]*)/i.exec(line);
+    out.push({ name: (cn?.[2] ?? cn?.[1] ?? '').trim() || email.split('@')[0], email, org });
+  }
+  return out.length ? out : undefined;
+}
+
 const CACHE_KEY = 'entrada.cache.v1';
 
 export function createGmailProvider(): Provider {
@@ -257,6 +274,7 @@ export function createGmailProvider(): Provider {
           id: m.id, name: from.name, email: from.email, to: header(m, 'To'),
           date: fmtDateLong(Number(m.internalDate)), text: bodyText(m.payload), html, files: collectFiles(m),
           unsubscribe: header(m, 'List-Unsubscribe') || undefined,
+          people: invitePeople(findPart(m.payload, 'text/calendar')),
           messageIdHeader: header(m, 'Message-ID') || header(m, 'Message-Id'), mine: from.email === self.toLowerCase(),
         };
       }));

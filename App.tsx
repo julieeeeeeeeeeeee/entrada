@@ -94,6 +94,7 @@ function MailApp({ provider, onSignOut }: { provider: Provider; onSignOut: () =>
   useEffect(() => {
     const d = lastResp?.notification.request.content.data as { threadId?: string; subject?: string } | undefined;
     const id = lastResp?.notification.request.identifier;
+    if (lastResp?.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return; // botões da notificação não abrem o e-mail
     if (!d?.threadId || !id || handledNotif.current === id) return;
     handledNotif.current = id;
     setReader({ id: d.threadId, kind: 'mail', name: '', email: '', subject: d.subject ?? '', snippet: '', time: '', unread: false, count: 0, files: [], cat: 'pessoas' });

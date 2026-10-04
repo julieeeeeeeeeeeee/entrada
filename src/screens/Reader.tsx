@@ -89,6 +89,7 @@ export function Reader({ m, row, onClose, onCompose, onFile, onSaveAll, saved }:
                 <>
                   {msg.files.length > 0 && <Attachments files={msg.files} saved={saved} onFile={onFile} onSaveAll={onSaveAll} />}
                   {msg.unsubscribe && <Unsub header={msg.unsubscribe} onCompose={onCompose} />}
+                  {msg.people && <People list={msg.people} />}
                   <Body msg={msg} />
                 </>
               ) : (
@@ -106,6 +107,24 @@ export function Reader({ m, row, onClose, onCompose, onFile, onSaveAll, saved }:
         <BarBtn label="Encaminhar" onPress={forward}><ArrowBendUpRight size={24} color={C.tx2} /></BarBtn>
       </View>
     </SafeAreaView>
+  );
+}
+
+/** convidados de um convite do Google Agenda, com foto */
+function People({ list }: { list: NonNullable<Msg['people']> }) {
+  return (
+    <View style={s.people}>
+      <Text style={s.peopleK}>{list.length} {list.length === 1 ? 'participante' : 'participantes'}</Text>
+      {list.slice(0, 12).map((p) => (
+        <View key={p.email} style={s.person}>
+          <Avatar name={p.name} cat="pessoas" email={p.email} size={36} />
+          <View style={{ flex: 1 }}>
+            <Text style={s.personN} numberOfLines={1}>{p.name}{p.org ? ' · organizador' : ''}</Text>
+            <Text style={s.sub} numberOfLines={1}>{p.email}</Text>
+          </View>
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -128,7 +147,7 @@ function Unsub({ header, onCompose }: { header: string; onCompose: (d: Partial<D
 function Body({ msg }: { msg: Msg }) {
   const { darkEmails: dark } = usePrefs();
   return msg.html
-    ? <HtmlBody html={msg.html} dark={dark} />
+    ? <View style={{ marginHorizontal: -24 }}><HtmlBody html={msg.html} dark={dark} /></View>
     : <Text style={s.body} selectable>{msg.text || '(sem texto)'}</Text>;
 }
 
@@ -194,7 +213,11 @@ const s = StyleSheet.create({
   fi: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#3b3d47', alignItems: 'center', justifyContent: 'center' },
   fn: { color: C.tx, fontFamily: F.semi, fontSize: 14.5 },
   fm: { color: C.sec, fontFamily: F.med, fontSize: 12.5, marginTop: 1 },
-  bar: { position: 'absolute', left: 16, right: 16, bottom: 24, height: 68, borderRadius: 34, backgroundColor: '#26272c', borderWidth: 1, borderColor: C.line, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', elevation: 10 },
-  barBtn: { alignItems: 'center', gap: 4, width: 74 },
+  bar: { position: 'absolute', left: 48, right: 48, bottom: 24, height: 68, borderRadius: 34, backgroundColor: '#26272c', borderWidth: 1, borderColor: C.line, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', elevation: 10 },
+  barBtn: { alignItems: 'center', gap: 4, width: 64 },
+  people: { backgroundColor: C.s1, borderRadius: 16, padding: 14, gap: 10, marginBottom: 12 },
+  peopleK: { color: C.sec, fontFamily: F.semi, fontSize: 12.5, letterSpacing: 0.5, textTransform: 'uppercase' },
+  person: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  personN: { color: C.tx, fontFamily: F.semi, fontSize: 14.5 },
   barLb: { color: C.sec, fontFamily: F.semi, fontSize: 11 },
 });

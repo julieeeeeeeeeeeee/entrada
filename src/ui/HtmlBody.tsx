@@ -30,6 +30,12 @@ export function cleanHtml(h: string): string {
     .replace(/@import[^;]+;/gi, '');
 }
 
+const EMOJI = /(\p{Extended_Pictographic}(?:️|‍\p{Extended_Pictographic}|[\u{1F3FB}-\u{1F3FF}])*|[\u{1F1E6}-\u{1F1FF}]{2})/gu;
+/** no modo escuro, emojis ganham uma marca para não serem invertidos junto com o resto */
+function wrapEmoji(h: string): string {
+  return h.split(/(<[^>]*>)/).map((part) => (part.startsWith('<') ? part : part.replace(EMOJI, '<span class="emo">$1</span>'))).join('');
+}
+
 export function HtmlBody({ html, dark }: { html: string; dark: boolean }) {
   const show = true; // imagens sempre aparecem
   const [height, setHeight] = useState(60);
@@ -38,31 +44,31 @@ export function HtmlBody({ html, dark }: { html: string; dark: boolean }) {
     // modo escuro: inverte as cores da página inteira e "desinverte" as imagens, pra fotos e logos ficarem normais.
     // O fundo #e4e3df invertido vira exatamente o fundo do app (#1b1c20).
     const darkCss = dark
-      ? `html{filter:invert(1) hue-rotate(180deg)}img,video,picture,svg,[style*="background-image"]{filter:invert(1) hue-rotate(180deg)}`
+      ? `html{filter:invert(1) hue-rotate(180deg)}img,video,picture,svg,.emo,[style*="background-image"]{filter:invert(1) hue-rotate(180deg)}.emo{display:inline-block}`
       : '';
     return `<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: https: http:; style-src 'unsafe-inline'; font-src data:; script-src 'none'">
 <style>
-html{background:${dark ? '#e4e3df' : '#fff'}}
+html{background:${dark ? '#ebeae7' : '#fff'}}
 html,body{margin:0;padding:0;color:#1b1c20;font:15px/1.5 -apple-system,Roboto,Helvetica,Arial,sans-serif;overflow-wrap:anywhere;word-break:break-word}
-body{padding:14px 16px}
+body{padding:8px 6px}
 img{max-width:100%!important;height:auto!important}
 table{max-width:100%!important}
 a{color:#1a56db}
 pre{white-space:pre-wrap}
 ${darkCss}
-</style></head><body>${cleanHtml(html)}</body></html>`;
+</style></head><body>${dark ? wrapEmoji(cleanHtml(html)) : cleanHtml(html)}</body></html>`;
   }, [html, dark]);
 
   return (
     <View>
-      <View style={[s.card, { backgroundColor: dark ? C.bg : '#fff' }]}>
+      <View style={[s.card, { backgroundColor: dark ? '#141518' : '#fff' }]}>
         <WebView
           key={dark ? 'dark' : 'light'}
           originWhitelist={['*']}
           source={{ html: doc }}
-          style={{ height, backgroundColor: dark ? C.bg : '#fff' }}
+          style={{ height, backgroundColor: dark ? '#141518' : '#fff' }}
           scrollEnabled={false}
           javaScriptEnabled
           domStorageEnabled={false}
@@ -83,7 +89,7 @@ ${darkCss}
 }
 
 const s = StyleSheet.create({
-  card: { borderRadius: 16, overflow: 'hidden' },
+  card: { overflow: 'hidden' },
   banner: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.s1, borderRadius: 14, paddingVertical: 11, paddingHorizontal: 14, marginBottom: 10 },
   bannerTx: { flex: 1, color: C.sec, fontFamily: F.med, fontSize: 12.5 },
   bannerBtn: { color: C.acText, fontFamily: F.bold, fontSize: 13 },

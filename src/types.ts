@@ -43,6 +43,7 @@ export interface Msg {
   mine?: boolean;
   html?: string; // versão HTML do e-mail (quando existe)
   unsubscribe?: string; // cabeçalho List-Unsubscribe
+  people?: { name: string; email: string; org?: boolean }[]; // convidados de um convite do Google Agenda
 }
 
 export interface Draft {

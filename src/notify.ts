@@ -67,6 +67,40 @@ export async function checkNewMail(): Promise<number> {
   return fresh.length;
 }
 
+const CATEGORY = 'mail-actions';
+export const ACTION_READ = 'read';
+export const ACTION_BLOCK = 'block';
+
+/** botões da notificação: marcar como lida e bloquear remetente (sem abrir o app) */
+async function setupActions() {
+  await Notifications.setNotificationCategoryAsync(CATEGORY, [
+    { identifier: ACTION_READ, buttonTitle: 'Marcar como lido', options: { opensAppToForeground: false } },
+    { identifier: ACTION_BLOCK, buttonTitle: 'Bloquear remetente', options: { opensAppToForeground: false, isDestructive: true } },
+  ]);
+}
+
+/** executa o botão tocado na notificação direto no Gmail */
+export async function handleNotifAction(action: string, data: { threadId?: string; email?: string } | undefined, notifId?: string) {
+  if (!data?.threadId || (action !== ACTION_READ && action !== ACTION_BLOCK)) return;
+  try {
+    const headers = { Authorization: `Bearer ${await getAccessToken()}`, 'Content-Type': 'application/json' };
+    if (action === ACTION_READ) {
+      await fetch(`${BASE}/threads/${data.threadId}/modify`, { method: 'POST', headers, body: JSON.stringify({ removeLabelIds: ['UNREAD'] }) });
+    } else if (data.email) {
+      await fetch(`${BASE}/settings/filters`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ criteria: { from: data.email }, action: { addLabelIds: ['TRASH'], removeLabelIds: ['INBOX'] } }),
+      });
+      await fetch(`${BASE}/threads/${data.threadId}/trash`, { method: 'POST', headers });
+    }
+  } catch { /* se falhar, o e-mail continua como estava */ }
+  if (notifId) Notifications.dismissNotificationAsync(notifId).catch(() => {});
+}
+
+Notifications.addNotificationResponseReceivedListener((resp) => {
+  handleNotifAction(resp.actionIdentifier, resp.notification.request.content.data as any, resp.notification.request.identifier);
+});
+
 // o servidor manda um sinal silencioso: o app acorda, confere o Gmail e mostra a notificação
 TaskManager.defineTask(PUSH_TASK, async () => {
   try {
@@ -136,6 +170,7 @@ async function register() {
     importance: Notifications.AndroidImportance.HIGH,
     lightColor: '#1877f2',
   });
+  await setupActions();
   await BackgroundTask.registerTaskAsync(TASK, { minimumInterval: 15 });
   await ensureRealtime();
 }
