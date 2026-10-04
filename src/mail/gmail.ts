@@ -21,7 +21,7 @@ async function g(path: string, init: { method?: string; body?: unknown } = {}): 
 
 // só traz o que a lista precisa (sem o corpo dos e-mails)
 const PART = 'mimeType,filename,body(size,attachmentId)';
-const LIST_FIELDS = `id,messages(id,labelIds,internalDate,snippet,payload(headers,${PART},parts(${PART},parts(${PART},parts(${PART}))))))`;
+const LIST_FIELDS = `id,messages(id,labelIds,internalDate,snippet,payload(headers,${PART},parts(${PART},parts(${PART},parts(${PART})))))`;
 
 const header = (m: any, n: string): string =>
   m.payload?.headers?.find((h: any) => h.name.toLowerCase() === n.toLowerCase())?.value ?? '';
