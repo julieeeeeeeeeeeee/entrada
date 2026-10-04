@@ -19,7 +19,7 @@ export function quickOf(msg: Msg): Quick {
   const add = (c: string) => { const v = c.trim(); if (v && !codes.includes(v)) codes.push(v); };
 
   // "seu código é 123456", "verification code: 4F8K2A", "código de acesso 123 456"
-  const near = /(?:c[oó]digo|code|verifica[cç][aã]o|verification|senha|otp|pin|token)[^\n0-9A-Za-z]{0,40}?([0-9]{3}[ -][0-9]{3}|[A-Z0-9]{4,8}|[0-9]{4,8})(?![A-Za-z0-9])/gi;
+  const near = /(?:c[oó]digo|code|verifica[cç][aã]o|verification|senha|otp|pin|token)[^0-9A-Za-z]{0,40}?([0-9]{3}[ -][0-9]{3}|[A-Z0-9]{4,8}|[0-9]{4,8})(?![A-Za-z0-9])/gi;
   for (const m of text.matchAll(near)) if (/\d/.test(m[1]) && !/^(19|20)\d\d$/.test(m[1])) add(m[1]);
   // linha só com o código
   if (codes.length === 0 && WORDS.test(msg.text + (msg.html ?? '')) ) {
