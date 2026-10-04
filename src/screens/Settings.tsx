@@ -7,7 +7,7 @@ import type { Account } from '../types';
 import { Avatar, IconBtn } from '../ui/parts';
 import { photoCount } from '../photos';
 import { setPref, usePrefs } from '../settings';
-import { disableNotify, enableNotify, notifyEnabled } from '../notify';
+import { disableNotify, enableNotify, ensureRealtime, notifyEnabled, realtimeStatus } from '../notify';
 import { checkUpdate, currentVersion, downloadAndInstall, type Release } from '../update';
 
 interface Props {
@@ -25,12 +25,14 @@ export function Settings({ account, demo, found, onClose, onSignOut }: Props) {
   const [busy, setBusy] = useState(false);
   const [notif, setNotif] = useState(false);
   const [notifMsg, setNotifMsg] = useState('');
-  useEffect(() => { notifyEnabled().then(setNotif); }, []);
+  const [rt, setRt] = useState('');
+  useEffect(() => { notifyEnabled().then(setNotif); realtimeStatus().then(setRt); }, []);
   const toggleNotif = async (on: boolean) => {
     if (on) {
       const ok = await enableNotify();
       setNotif(ok);
       setNotifMsg(ok ? '' : 'Permissão negada. Ative as notificações do Entrada nas configurações do Android.');
+      setRt(await realtimeStatus());
     } else { await disableNotify(); setNotif(false); setNotifMsg(''); }
   };
 
@@ -107,7 +109,13 @@ export function Settings({ account, demo, found, onClose, onSignOut }: Props) {
             <Text style={s.k}>Notificações</Text>
             <Switch value={notif} onValueChange={toggleNotif} trackColor={{ true: C.ac, false: C.s2 }} thumbColor="#fff" />
           </View>
-          <Text style={s.sub}>Avisa de novos e-mails. O Android deixa o app conferir a cada uns 15 minutos (não é na hora).</Text>
+          <Text style={s.sub}>Avisa de novos e-mails assim que chegam.</Text>
+          {notif && <Text style={[s.sub, { color: rt === 'ok' ? C.ok : '#ffb4b8' }]}>{rt === 'ok' ? 'Em tempo real: ligado ✓' : rt ? `Em tempo real: ${rt}. Toque em Tentar de novo.` : 'Em tempo real: configurando…'}</Text>}
+          {notif && rt !== 'ok' && (
+            <Pressable onPress={async () => { setRt('configurando…'); setRt(await ensureRealtime(true)); }}>
+              <Text style={{ color: C.acText, fontFamily: F.bold, fontSize: 13.5, marginTop: 6 }}>Tentar de novo</Text>
+            </Pressable>
+          )}
           {!!notifMsg && <Text style={[s.status, { color: '#ffb4b8' }]}>{notifMsg}</Text>}
         </View>
       )}

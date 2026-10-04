@@ -12,6 +12,12 @@ const TASK = 'entrada-check-mail';
 const KEY_ON = 'entrada.notify';
 const KEY_SEEN = 'entrada.seen';
 const BASE = 'https://gmail.googleapis.com/gmail/v1/users/me';
+const PUSH_TASK = 'entrada-push-wake';
+const KEY_WATCH = 'entrada.watchAt';
+const KEY_RT = 'entrada.realtime';
+// servidor que recebe o aviso do Gmail e acorda o app (Supabase) e tópico do Google Pub/Sub
+const REGISTER_URL = 'https://ribdmjrdwwnrvfdlrxfw.supabase.co/functions/v1/entrada-push/register';
+const TOPIC = 'projects/entrada-510619/topics/gmail-push';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: false, shouldSetBadge: false }),
@@ -61,14 +67,68 @@ export async function checkNewMail(): Promise<number> {
   return fresh.length;
 }
 
-TaskManager.defineTask(TASK, async () => {
+// o servidor manda um sinal silencioso: o app acorda, confere o Gmail e mostra a notificação
+TaskManager.defineTask(PUSH_TASK, async () => {
   try {
     if (await notifyEnabled()) await checkNewMail();
+  } catch { /* tenta no próximo sinal */ }
+});
+
+TaskManager.defineTask(TASK, async () => {
+  try {
+    if (await notifyEnabled()) { await checkNewMail(); await watchMailbox().catch(() => {}); }
     return BackgroundTask.BackgroundTaskResult.Success;
   } catch {
     return BackgroundTask.BackgroundTaskResult.Failed;
   }
 });
+
+/** cadastra este aparelho no servidor (só aceita a sua conta Google) */
+async function registerDevice() {
+  const t = await Notifications.getDevicePushTokenAsync();
+  const r = await fetch(REGISTER_URL, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${await getAccessToken()}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token: String(t.data) }),
+  });
+  if (!r.ok) throw new Error(`cadastro do aparelho: ${r.status}`);
+}
+
+/** pede ao Gmail para avisar o servidor a cada e-mail novo. O pedido vale 7 dias, então renovamos todo dia. */
+async function watchMailbox(force = false) {
+  const last = Number((await AsyncStorage.getItem(KEY_WATCH)) ?? 0);
+  if (!force && Date.now() - last < 20 * 3600_000) return;
+  const r = await fetch(`${BASE}/watch`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${await getAccessToken()}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ topicName: TOPIC, labelIds: ['INBOX'], labelFilterBehavior: 'INCLUDE' }),
+  });
+  if (!r.ok) throw new Error(`aviso do Gmail: ${r.status} ${(await r.text()).slice(0, 120)}`);
+  await AsyncStorage.setItem(KEY_WATCH, String(Date.now()));
+}
+
+let tokenListener = false;
+
+/** liga o aviso em tempo real. Guarda o resultado para mostrar em Configurações. */
+export async function ensureRealtime(force = false): Promise<string> {
+  try {
+    await Notifications.registerTaskAsync(PUSH_TASK);
+    await registerDevice();
+    await watchMailbox(force);
+    if (!tokenListener) {
+      tokenListener = true;
+      Notifications.addPushTokenListener(() => { registerDevice().catch(() => {}); });
+    }
+    await AsyncStorage.setItem(KEY_RT, 'ok');
+    return 'ok';
+  } catch (e) {
+    const msg = `erro: ${e instanceof Error ? e.message : String(e)}`;
+    await AsyncStorage.setItem(KEY_RT, msg);
+    return msg;
+  }
+}
+
+export const realtimeStatus = async () => (await AsyncStorage.getItem(KEY_RT)) ?? '';
 
 async function register() {
   await Notifications.setNotificationChannelAsync('mail', {
@@ -77,6 +137,7 @@ async function register() {
     lightColor: '#1877f2',
   });
   await BackgroundTask.registerTaskAsync(TASK, { minimumInterval: 15 });
+  await ensureRealtime();
 }
 
 /** pede permissão e liga os avisos. Devolve false se você negou a permissão. */

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1067023133332",
+    "project_id": "entrada-510619",
+    "storage_bucket": "entrada-510619.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1067023133332:android:f769e116b4a448a9caa281",
+        "android_client_info": {
+          "package_name": "br.julie.entrada"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAAY0xO94n9IU4HMw935qExZgXNqwVVjv4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
