@@ -221,6 +221,34 @@ export function createGmailProvider(): Provider {
     async deleteDraft(d) {
       if (d.id) await g(`/drafts/${d.id}`, { method: 'DELETE' });
     },
+    async photos() {
+      const out: Record<string, string> = {};
+      const take = (people: any[] | undefined) => {
+        for (const p of people ?? []) {
+          const ph = (p.photos ?? []).find((x: any) => x.url && !x.default);
+          if (!ph) continue;
+          for (const e of p.emailAddresses ?? []) if (e.value) out[String(e.value).toLowerCase()] = ph.url;
+        }
+      };
+      const get = async (url: string) => {
+        const r = await fetch(url, { headers: { Authorization: `Bearer ${await getAccessToken()}` } });
+        const j = await r.json().catch(() => null);
+        if (!r.ok) throw new Error(r.status === 403 ? 'sem-permissao' : j?.error?.message ?? `Contatos ${r.status}`);
+        return j;
+      };
+      const walk = async (base: string, key: 'connections' | 'otherContacts') => {
+        let token = '';
+        for (let page = 0; page < 5; page++) {
+          const j = await get(base + (token ? `&pageToken=${token}` : ''));
+          take(j[key]);
+          token = j.nextPageToken ?? '';
+          if (!token) break;
+        }
+      };
+      await walk('https://people.googleapis.com/v1/people/me/connections?personFields=emailAddresses,photos&pageSize=1000', 'connections');
+      await walk('https://people.googleapis.com/v1/otherContacts?readMask=emailAddresses,photos&pageSize=1000', 'otherContacts').catch(() => {});
+      return out;
+    },
     async attachment(f) {
       const j = await g(`/messages/${f.msgId}/attachments/${f.id}`);
       const uri = `${FS.cacheDirectory}${f.name.replace(/[^\w.\-]+/g, '_')}`;

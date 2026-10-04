@@ -73,4 +73,6 @@ export interface Provider {
   deleteDraft(d: Draft): Promise<void>;
   /** baixa o anexo e devolve o caminho local do arquivo */
   attachment(f: FileRef): Promise<string>;
+  /** foto de cada contato, por e-mail (só no Gmail) */
+  photos?(): Promise<Record<string, string>>;
 }

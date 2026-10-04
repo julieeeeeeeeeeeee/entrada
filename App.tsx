@@ -18,6 +18,7 @@ import { Reader } from './src/screens/Reader';
 import { Settings } from './src/screens/Settings';
 import { useMail } from './src/state';
 import { C, F } from './src/theme';
+import { setPhotos } from './src/photos';
 import { checkUpdate, type Release } from './src/update';
 import type { Account, Draft, FileRef, Provider, Row } from './src/types';
 import { Slide, Toast, UndoBar } from './src/ui/parts';
@@ -72,6 +73,11 @@ function MailApp({ provider, onSignOut }: { provider: Provider; onSignOut: () =>
 
   useEffect(() => { provider.account().then(setAccount).catch(() => {}); }, [provider]);
   useEffect(() => { checkUpdate().then(setUpdate).catch(() => {}); }, []);
+  useEffect(() => {
+    provider.photos?.().then(setPhotos).catch((e) => {
+      if (String(e?.message ?? e).includes('sem-permissao')) m.toast('Para ver as fotos, saia da conta e entre de novo (Configurações).');
+    });
+  }, [provider]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openCompose = useCallback((initial: Partial<Draft> = {}) => setCompose({ initial, key: Date.now() }), []);
 

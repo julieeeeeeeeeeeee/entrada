@@ -5,6 +5,7 @@ import { Animated, Easing, Image, Pressable, StyleSheet, Text, View, type ViewSt
 import type { Bar } from '../state';
 import { C, F } from '../theme';
 import type { CatKey } from '../types';
+import { usePhoto } from '../photos';
 import { initials } from '../util';
 import { CAT } from './icons';
 
@@ -30,6 +31,7 @@ const hashes = new Map<string, string>();
  */
 export function Avatar({ name, cat, email = '', size = 46 }: { name: string; cat: CatKey; email?: string; size?: number }) {
   const person = cat === 'pessoas';
+  const contactPhoto = usePhoto(email);
   const [uri, setUri] = useState<string | null>(null);
   const [, bump] = useState(0);
 
@@ -37,6 +39,7 @@ export function Avatar({ name, cat, email = '', size = 46 }: { name: string; cat
     let alive = true;
     setUri(null);
     if (!email) return;
+    if (contactPhoto) { setUri(contactPhoto); return; }
     if (person) {
       const e = email.trim().toLowerCase();
       const known = hashes.get(e);
@@ -48,7 +51,7 @@ export function Avatar({ name, cat, email = '', size = 46 }: { name: string; cat
       if (d) setUri(`https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=http://${d}&size=128`);
     }
     return () => { alive = false; };
-  }, [email, person]);
+  }, [email, person, contactPhoto]);
 
   const h = [...name].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
   const colors = person ? PAL[h % PAL.length] : (['#4b4e5a', '#31333c'] as [string, string]);
@@ -57,12 +60,12 @@ export function Avatar({ name, cat, email = '', size = 46 }: { name: string; cat
 
   if (uri && !failed.has(uri)) {
     return (
-      <View style={[base, { backgroundColor: person ? C.s2 : '#fff', alignItems: 'center', justifyContent: 'center' }]}>
+      <View style={[base, { backgroundColor: person || uri === contactPhoto ? C.s2 : '#fff', alignItems: 'center', justifyContent: 'center' }]}>
         <Image
           source={{ uri }}
           onError={() => { failed.add(uri); bump((n) => n + 1); }}
-          style={person ? { width: size, height: size } : { width: size * 0.62, height: size * 0.62 }}
-          resizeMode={person ? 'cover' : 'contain'}
+          style={person || uri === contactPhoto ? { width: size, height: size } : { width: size * 0.62, height: size * 0.62 }}
+          resizeMode={person || uri === contactPhoto ? 'cover' : 'contain'}
         />
       </View>
     );
