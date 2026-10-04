@@ -75,6 +75,8 @@ export interface Provider {
   counts(): Promise<Partial<Record<Section, number>>>;
   thread(row: Row): Promise<Msg[]>;
   archive(row: Row): Promise<void>;
+  /** arquiva e-mails já lidos com mais de `days` dias; devolve quantos */
+  autoArchive?(days: number): Promise<number>;
   trash(row: Row): Promise<void>;
   restore(row: Row): Promise<void>;
   block(row: Row): Promise<void>;

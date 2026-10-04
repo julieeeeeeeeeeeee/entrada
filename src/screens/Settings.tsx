@@ -1,6 +1,6 @@
 import { ArrowsClockwise, CaretLeft, DownloadSimple, SignOut } from 'phosphor-react-native';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { C, F } from '../theme';
 import type { Account } from '../types';
@@ -105,6 +105,34 @@ export function Settings({ account, demo, found, onClose, onSignOut }: Props) {
         </View>
       </View>
 
+      <View style={s.card}>
+        <Text style={s.k}>Escrever</Text>
+        <Text style={[s.optT, { marginTop: 10 }]}>Despedida</Text>
+        <Text style={s.sub}>Já vem no fim de todo e-mail novo ou resposta.</Text>
+        <TextInput
+          value={prefs.signature} onChangeText={(v) => setPref('signature', v)} multiline textAlignVertical="top"
+          placeholder={'Ex.: Abraços,\nJulie'} placeholderTextColor={C.sec} style={s.sig}
+        />
+      </View>
+
+      <View style={s.card}>
+        <Text style={s.k}>Arquivamento automático</Text>
+        <View style={s.opt}>
+          <View style={{ flex: 1 }}>
+            <Text style={s.optT}>Arquivar ao responder</Text>
+            <Text style={s.sub}>Depois de enviar uma resposta, a conversa sai da Entrada.</Text>
+          </View>
+          <Switch value={prefs.archiveOnReply} onValueChange={(v) => setPref('archiveOnReply', v)} trackColor={{ true: C.ac, false: C.s2 }} thumbColor="#fff" />
+        </View>
+        <View style={s.opt}>
+          <View style={{ flex: 1 }}>
+            <Text style={s.optT}>Arquivar e-mails antigos</Text>
+            <Text style={s.sub}>Os já lidos, com mais de 30 dias, saem da Entrada (favoritos e importantes ficam).</Text>
+          </View>
+          <Switch value={prefs.archiveOld} onValueChange={(v) => setPref('archiveOld', v)} trackColor={{ true: C.ac, false: C.s2 }} thumbColor="#fff" />
+        </View>
+      </View>
+
       {!demo && (
         <View style={s.card}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -155,6 +183,7 @@ const s = StyleSheet.create({
   title: { color: C.tx, fontFamily: F.bold, fontSize: 17 },
   card: { backgroundColor: C.s1, borderRadius: 20, padding: 18, marginTop: 14, gap: 4 },
   opt: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 10 },
+  sig: { marginTop: 10, minHeight: 74, backgroundColor: C.s2, borderRadius: 14, padding: 12, color: C.tx, fontFamily: F.reg, fontSize: 15, lineHeight: 22 },
   optT: { color: C.tx, fontFamily: F.semi, fontSize: 15 },
   k: { color: C.sec, fontFamily: F.semi, fontSize: 12.5, letterSpacing: 0.6, textTransform: 'uppercase' },
   v: { color: C.tx, fontFamily: F.bold, fontSize: 18, marginTop: 4 },

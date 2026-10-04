@@ -1,10 +1,12 @@
 import { PaperPlaneTilt, X } from 'phosphor-react-native';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { C, F } from '../theme';
 import type { Draft } from '../types';
-import { IconBtn } from '../ui/parts';
+import { suggest } from '../contacts';
+import { getPrefs } from '../settings';
+import { Avatar, IconBtn } from '../ui/parts';
 
 interface Props {
   initial: Partial<Draft>;
@@ -17,8 +19,23 @@ interface Props {
 export function Compose({ initial, from, onSend, onClose, onInvalid }: Props) {
   const [to, setTo] = useState(initial.to ?? '');
   const [subject, setSubject] = useState(initial.subject ?? '');
-  const [body, setBody] = useState(initial.body ?? '');
-  const cur = (): Draft => ({ ...initial, to: to.trim(), subject, body });
+  // a despedida já vem escrita; o cursor fica acima dela. Rascunhos salvos ficam como estavam.
+  const sig = initial.id ? '' : getPrefs().signature.trim();
+  const [body, setBody] = useState(() => (sig ? `\n\n${sig}${initial.body ?? ''}` : initial.body ?? ''));
+  const [sel, setSel] = useState<{ start: number; end: number } | undefined>(sig ? { start: 0, end: 0 } : undefined);
+  const [toFocus, setToFocus] = useState(false);
+  // texto que você está digitando agora no "Para" (depois da última vírgula)
+  const part = to.split(/[,;]/).pop()!.trim();
+  const sugg = useMemo(
+    () => (toFocus ? suggest(part, to.toLowerCase().split(/[,;]/).map((x) => x.trim())) : []),
+    [part, toFocus, to],
+  );
+  const pick = (name: string, email: string) => {
+    const head = to.split(/[,;]/).slice(0, -1).map((x) => x.trim()).filter(Boolean);
+    setTo([...head, email].join(', ') + ', ');
+  };
+  // só a despedida, sem mais nada, não conta como conteúdo
+  const cur = (): Draft => ({ ...initial, to: to.trim().replace(/,$/, ''), subject, body: sig && body.trim() === sig ? '' : body });
 
   const send = () => {
     const d = cur();
@@ -40,14 +57,30 @@ export function Compose({ initial, from, onSend, onClose, onInvalid }: Props) {
         <View style={s.fld}><Text style={s.lb}>De</Text><Text style={s.from} numberOfLines={1}>{from}</Text></View>
         <View style={s.fld}>
           <Text style={s.lb}>Para</Text>
-          <TextInput value={to} onChangeText={setTo} style={s.in} autoCapitalize="none" keyboardType="email-address" autoFocus={!initial.to} />
+          <TextInput
+            value={to} onChangeText={setTo} style={s.in} autoCapitalize="none" keyboardType="email-address" autoFocus={!initial.to}
+            onFocus={() => setToFocus(true)} onBlur={() => setToFocus(false)}
+          />
         </View>
+        {sugg.length > 0 && (
+          <View>
+            {sugg.map((c) => (
+              <Pressable key={c.email} style={({ pressed }) => [s.sug, pressed && { backgroundColor: C.s1 }]} onPress={() => pick(c.name, c.email)}>
+                <Avatar name={c.name || c.email} cat="pessoas" email={c.email} size={40} />
+                <View style={{ flex: 1 }}>
+                  {!!c.name && <Text style={s.sugN} numberOfLines={1}>{c.name}</Text>}
+                  <Text style={c.name ? s.sugE : s.sugN} numberOfLines={1}>{c.email}</Text>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        )}
         <View style={s.fld}>
           <Text style={s.lb}>Assunto</Text>
           <TextInput value={subject} onChangeText={setSubject} style={s.in} />
         </View>
         <TextInput
-          value={body} onChangeText={setBody} multiline textAlignVertical="top" autoFocus={!!initial.to}
+          value={body} onChangeText={(v) => { setSel(undefined); setBody(v); }} selection={sel} multiline textAlignVertical="top" autoFocus={!!initial.to}
           placeholder="Escreva sua mensagem" placeholderTextColor={C.sec} style={s.body}
         />
       </KeyboardAvoidingView>
@@ -65,5 +98,8 @@ const s = StyleSheet.create({
   lb: { color: C.sec, fontFamily: F.med, fontSize: 15.5, width: 74 },
   from: { color: C.tx2, fontFamily: F.med, fontSize: 15.5, flex: 1 },
   in: { flex: 1, color: C.tx, fontFamily: F.reg, fontSize: 15.5, padding: 0 },
+  sug: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 22, paddingVertical: 9 },
+  sugN: { color: C.tx, fontFamily: F.semi, fontSize: 15 },
+  sugE: { color: C.sec, fontFamily: F.reg, fontSize: 13.5 },
   body: { flex: 1, color: C.tx, fontFamily: F.reg, fontSize: 16, lineHeight: 25, paddingHorizontal: 22, paddingTop: 18 },
 });

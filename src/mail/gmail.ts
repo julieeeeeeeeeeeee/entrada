@@ -1,5 +1,6 @@
 // Provider real: fala com a API do Gmail.
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { addContacts } from '../contacts';
 import * as FS from 'expo-file-system/legacy';
 import { classify } from '../classify';
 import type { Account, Draft, FileRef, Msg, Provider, Row, Section } from '../types';
@@ -280,6 +281,13 @@ export function createGmailProvider(): Provider {
       }));
     },
     archive: (row) => modify(row.id, [], ['INBOX']),
+    async autoArchive(days) {
+      const q = encodeURIComponent(`in:inbox -is:unread -is:starred -is:important older_than:${days}d`);
+      const j = await g(`/threads?q=${q}&maxResults=50`);
+      const th: { id: string }[] = j?.threads ?? [];
+      await pool(th, 3, (t) => modify(t.id, [], ['INBOX']));
+      return th.length;
+    },
     trash: (row) => g(`/threads/${row.id}/trash`, { method: 'POST' }),
     async restore(row) {
       await g(`/threads/${row.id}/untrash`, { method: 'POST' }).catch(() => null);
@@ -316,6 +324,8 @@ export function createGmailProvider(): Provider {
       const out: Record<string, string> = {};
       const take = (people: any[] | undefined) => {
         for (const p of people ?? []) {
+          const nm = p.names?.[0]?.displayName ?? '';
+          addContacts((p.emailAddresses ?? []).map((e: any) => ({ name: nm, email: String(e.value ?? '') })));
           const ph = (p.photos ?? []).find((x: any) => x.url && !x.default);
           if (!ph) continue;
           for (const e of p.emailAddresses ?? []) if (e.value) out[String(e.value).toLowerCase()] = ph.url;
@@ -336,8 +346,8 @@ export function createGmailProvider(): Provider {
           if (!token) break;
         }
       };
-      await walk('https://people.googleapis.com/v1/people/me/connections?personFields=emailAddresses,photos&pageSize=1000', 'connections');
-      await walk('https://people.googleapis.com/v1/otherContacts?readMask=emailAddresses,photos&pageSize=1000', 'otherContacts').catch(() => {});
+      await walk('https://people.googleapis.com/v1/people/me/connections?personFields=names,emailAddresses,photos&pageSize=1000', 'connections');
+      await walk('https://people.googleapis.com/v1/otherContacts?readMask=names,emailAddresses,photos&pageSize=1000', 'otherContacts').catch(() => {});
       return out;
     },
     async attachment(f) {

@@ -24,6 +24,9 @@ import { addPhotos, setPhotos } from './src/photos';
 import { checkUpdate, type Release } from './src/update';
 import type { Account, Draft, FileRef, Provider, Row } from './src/types';
 import { Slide, Toast, UndoBar } from './src/ui/parts';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { usePrefs } from './src/settings';
+import { addContacts } from './src/contacts';
 
 export default function App() {
   const [fontsOk] = useFonts({ Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold });
@@ -66,6 +69,24 @@ export default function App() {
 function MailApp({ provider, onSignOut }: { provider: Provider; onSignOut: () => void }) {
   const m = useMail(provider);
   const insets = useSafeAreaInsets();
+  const prefs = usePrefs();
+
+  // quem aparece na lista vira sugestão de destinatário
+  useEffect(() => {
+    addContacts(m.rows.filter((r) => r.kind === 'mail').map((r) => ({ name: r.name, email: r.email })));
+  }, [m.rows]);
+
+  // arquivamento automático: e-mails já lidos com mais de 30 dias saem da Entrada (no máximo 2x por dia)
+  useEffect(() => {
+    if (!prefs.archiveOld || !provider.autoArchive) return;
+    (async () => {
+      const last = Number((await AsyncStorage.getItem('entrada.autoArchiveAt')) ?? 0);
+      if (Date.now() - last < 12 * 3600_000) return;
+      const n = await provider.autoArchive!(30);
+      await AsyncStorage.setItem('entrada.autoArchiveAt', String(Date.now()));
+      if (n) { m.toast(`${n} e-mails antigos arquivados`); m.load(true, true); }
+    })().catch(() => {});
+  }, [provider, prefs.archiveOld]); // eslint-disable-line react-hooks/exhaustive-deps
   const [account, setAccount] = useState<Account | null>(null);
   const [reader, setReader] = useState<Row | null>(null);
   const [compose, setCompose] = useState<{ initial: Partial<Draft>; key: number } | null>(null);

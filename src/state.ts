@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Haptics from 'expo-haptics';
+import { getPrefs } from './settings';
 import type { Draft, Provider, Row, Section } from './types';
 
 export interface Bar {
@@ -168,7 +169,9 @@ export function useMail(provider: Provider) {
   };
 
   const send = (d: Draft, onUndo: () => void) =>
-    undoable('Enviando', async () => { await provider.send(d); toast('E-mail enviado'); if (secRef.current !== 'inbox') load(true); }, onUndo, 10, true);
+    undoable('Enviando', async () => { await provider.send(d); toast('E-mail enviado');
+      if (d.threadId && getPrefs().archiveOnReply) { await provider.archive({ id: d.threadId } as Row).catch(() => {}); load(true, true); }
+      else if (secRef.current !== 'inbox') load(true); }, onUndo, 10, true);
 
   const saveDraft = (d: Draft, onUndo: () => void) =>
     undoable('Rascunho salvo em Rascunhos', async () => { await provider.saveDraft(d); if (secRef.current === 'rascunhos') load(true); }, onUndo, 5);
