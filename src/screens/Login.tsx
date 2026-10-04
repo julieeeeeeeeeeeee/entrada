@@ -2,16 +2,19 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { C, F } from '../theme';
+import { downloadAndInstall, type Release } from '../update';
 
 interface Props {
   configured: boolean;
   onGoogle: () => Promise<void>;
   onDemo: () => void;
+  update: Release | null;
 }
 
-export function Login({ configured, onGoogle, onDemo }: Props) {
+export function Login({ configured, onGoogle, onDemo, update }: Props) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [upd, setUpd] = useState('');
   const go = async () => {
     setBusy(true); setErr('');
     try { await onGoogle(); } catch (e) { setErr(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
@@ -31,6 +34,14 @@ export function Login({ configured, onGoogle, onDemo }: Props) {
           <Text style={s.warn}>O login com Google ainda não foi configurado. Siga o passo a passo do arquivo SETUP.md.</Text>
         )}
         {!!err && <Text style={s.err}>{err}</Text>}
+        {update && (
+          <Pressable
+            style={[s.btn, { backgroundColor: C.ac }]}
+            onPress={() => downloadAndInstall(update, (p) => setUpd(`Baixando… ${Math.round(p * 100)}%`)).then(() => setUpd('Toque em Instalar na tela do Android.')).catch((e) => setUpd(String(e?.message ?? e)))}
+          >
+            <Text style={[s.btnTx, { color: '#fff' }]}>{upd || `Atualizar para a versão ${update.version}`}</Text>
+          </Pressable>
+        )}
         <Pressable style={[s.btn, s.ghost]} onPress={onDemo}>
           <Text style={[s.btnTx, { color: C.tx }]}>Ver demonstração</Text>
         </Pressable>

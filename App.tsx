@@ -26,11 +26,13 @@ export default function App() {
   const [fontsOk] = useFonts({ Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold });
   const [provider, setProvider] = useState<Provider | null>(null);
   const [booted, setBooted] = useState(false);
+  const [loginUpdate, setLoginUpdate] = useState<Release | null>(null);
 
   useEffect(() => {
     (async () => {
       if (isConfigured && (await hasSession())) setProvider(createGmailProvider());
       setBooted(true);
+      checkUpdate().then(setLoginUpdate).catch(() => {});
     })();
   }, []);
 
@@ -50,6 +52,7 @@ export default function App() {
             configured={isConfigured}
             onGoogle={async () => { await signIn(); await getAccessToken(); setProvider(createGmailProvider()); }}
             onDemo={() => setProvider(createDemoProvider())}
+            update={loginUpdate}
           />
         )}
       </SafeAreaProvider>

@@ -23,9 +23,8 @@ const discovery: AuthSession.DiscoveryDocument = {
   revocationEndpoint: 'https://oauth2.googleapis.com/revoke',
 };
 
-// Cliente Android do Google usa como "redirect" o Client ID ao contrário
-const scheme = `com.googleusercontent.apps.${CLIENT_ID.replace('.apps.googleusercontent.com', '')}`;
-const redirectUri = `${scheme}:/oauth2redirect`;
+// Cliente Android do Google: o "endereço de volta" usa o nome do pacote do app como esquema
+const redirectUri = 'br.julie.entrada:/oauth2redirect';
 
 const KEY = 'entrada.session';
 interface Session { accessToken: string; refreshToken?: string; expiresAt: number }
