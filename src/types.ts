@@ -65,6 +65,10 @@ export interface Provider {
   kind: 'demo' | 'gmail';
   account(): Promise<Account>;
   list(sec: Section, q?: string): Promise<Row[]>;
+  /** há mais e-mails antigos a carregar? */
+  hasMore?(): boolean;
+  /** carrega a próxima leva (mais antigos) */
+  more?(sec: Section, q?: string): Promise<Row[]>;
   /** lista guardada no celular, para mostrar na hora enquanto atualiza */
   cached?(sec: Section): Promise<Row[] | null>;
   counts(): Promise<Partial<Record<Section, number>>>;

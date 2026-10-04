@@ -1,6 +1,6 @@
 import { ArrowsClockwise, CaretLeft, DownloadSimple, SignOut } from 'phosphor-react-native';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { C, F } from '../theme';
 import type { Account } from '../types';
@@ -65,6 +65,8 @@ export function Settings({ account, demo, found, onClose, onSignOut }: Props) {
         <Text style={s.title}>Configurações</Text>
         <View style={{ width: 44 }} />
       </View>
+
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
 
       <View style={s.card}>
         <Text style={s.k}>Conta</Text>
@@ -142,6 +144,7 @@ export function Settings({ account, demo, found, onClose, onSignOut }: Props) {
         <SignOut size={20} color={C.danger} />
         <Text style={[s.btnTx, { color: C.danger }]}>{demo ? 'Sair da demonstração' : 'Sair da conta'}</Text>
       </Pressable>
+      </ScrollView>
     </SafeAreaView>
   );
 }

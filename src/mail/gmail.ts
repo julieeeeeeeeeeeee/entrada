@@ -172,8 +172,11 @@ export function createGmailProvider(): Provider {
     return a;
   };
 
-  const list = async (sec: Section, q?: string): Promise<Row[]> => {
+  // "página" seguinte do Gmail (para carregar e-mails mais antigos ao descer a lista)
+  let nextTok: string | undefined;
+  const list = async (sec: Section, q?: string, pageToken?: string): Promise<Row[]> => {
     if (!self) await me();
+    if (!pageToken) nextTok = undefined;
     if (sec === 'rascunhos') {
       const j = await g('/drafts?maxResults=30');
       const drafts: any[] = j?.drafts ?? [];
@@ -209,8 +212,10 @@ export function createGmailProvider(): Provider {
     if (sec === 'lixeira') { params.append('labelIds', 'TRASH'); params.set('includeSpamTrash', 'true'); }
     if (sec === 'arquivados') query = `-in:inbox -in:sent -in:trash -in:spam -in:drafts ${query}`.trim();
     if (query) params.set('q', query);
+    if (pageToken) params.set('pageToken', pageToken);
     await loadDisk();
     const j = await g(`/threads?${params}`);
+    nextTok = j?.nextPageToken;
     const listed: { id: string; historyId: string }[] = j?.threads ?? [];
     // só rebusca as conversas novas ou que mudaram (a lista já traz a "versão" de cada uma)
     const old = new Map((q ? [] : mem[sec] ?? []).map((r) => [r.id, r]));
@@ -221,7 +226,7 @@ export function createGmailProvider(): Provider {
     if (need.length && fetched.every((x) => !x) && !old.size) throw new Error('O Gmail não respondeu. Tente de novo em instantes.');
     const byId = new Map(fetched.filter(Boolean).map((r) => [r!.id, r!]));
     const rows = listed.map((t) => byId.get(t.id) ?? old.get(t.id)).filter(Boolean) as Row[];
-    if (!q) { mem[sec] = rows; if (sec === 'inbox') saveDisk(); }
+    if (!q && !pageToken) { mem[sec] = rows; if (sec === 'inbox') saveDisk(); }
     return rows;
   };
 
@@ -231,7 +236,9 @@ export function createGmailProvider(): Provider {
   return {
     kind: 'gmail',
     account: me,
-    list,
+    list: (sec, q) => list(sec, q),
+    hasMore: () => !!nextTok,
+    more: (sec, q) => (nextTok ? list(sec, q, nextTok) : Promise.resolve([])),
     async cached(sec) { await loadDisk(); return mem[sec] ?? null; },
     async counts() {
       const [inbox, draft, trash] = await Promise.all([g('/labels/INBOX'), g('/labels/DRAFT'), g('/labels/TRASH')]);

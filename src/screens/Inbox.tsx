@@ -127,6 +127,9 @@ export function Inbox({ m, onOpen, onCompose, onSettings, onFile }: Props) {
           onScroll={onScroll}
           scrollEventThrottle={16}
           itemLayoutAnimation={LinearTransition.duration(220)}
+          onEndReached={() => m.loadMore()}
+          onEndReachedThreshold={0.6}
+          ListFooterComponent={m.loadingMore ? <ActivityIndicator color={C.sec} style={{ marginVertical: 22 }} /> : null}
           renderItem={({ item, index }) => item.t === 'h' ? (
             <Animated.Text entering={FadeIn.duration(200)} style={s.group}>{item.label}</Animated.Text>
           ) : (

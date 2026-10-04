@@ -25,6 +25,9 @@ export function useMail(provider: Provider) {
   const [counts, setCounts] = useState<Partial<Record<Section, number>>>({});
   const [bar, setBar] = useState<Bar | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const moreBusy = useRef(false);
 
   const secRef = useRef(sec);
   const queryRef = useRef(query);
@@ -57,6 +60,7 @@ export function useMail(provider: Provider) {
       const r = await provider.list(secRef.current, queryRef.current || undefined);
       if (id !== loadId.current) return;
       setRows(r);
+      setHasMore(!!provider.hasMore?.());
       setError(null);
     } catch (e) {
       if (id === loadId.current) setError(e instanceof Error ? e.message : String(e));
@@ -67,6 +71,28 @@ export function useMail(provider: Provider) {
   }, [provider]);
 
   useEffect(() => { load(); }, [load]);
+
+  /** ao chegar no fim da lista, busca a próxima leva de e-mails mais antigos */
+  const loadMore = useCallback(async () => {
+    if (!provider.more || !provider.hasMore?.() || moreBusy.current || loadId.current === 0) return;
+    moreBusy.current = true;
+    setLoadingMore(true);
+    const id = loadId.current;
+    try {
+      const r = await provider.more(secRef.current, queryRef.current || undefined);
+      if (id !== loadId.current) return;
+      setRows((prev) => {
+        const seen = new Set(prev.map((x) => x.id));
+        return [...prev, ...r.filter((x) => !seen.has(x.id))];
+      });
+      setHasMore(!!provider.hasMore?.());
+    } catch (e) {
+      toast(`Não deu pra carregar mais: ${e instanceof Error ? e.message : e}`);
+    } finally {
+      moreBusy.current = false;
+      setLoadingMore(false);
+    }
+  }, [provider, toast]);
 
   const setSec = (s: Section) => { secRef.current = s; setSecState(s); setRows([]); load(); };
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -151,6 +177,7 @@ export function useMail(provider: Provider) {
 
   return {
     sec, setSec, query, setQuery, search, rows, loading, error, counts, bar, note, toast,
+    hasMore, loadingMore, loadMore,
     load, archive, trash, restore, unblock, block, setUnread, openThread, send, saveDraft, deleteDraft, undoable,
   };
 }
