@@ -99,7 +99,7 @@ export function UndoBar({ bar }: { bar: Bar | null }) {
   const insets = useSafeAreaInsets();
   if (!bar) return null;
   return (
-    <Animated.View entering={SlideInDown.springify().damping(18).stiffness(220)} exiting={FadeOut.duration(140)} style={[s.undo, { bottom: 112 + insets.bottom }]}>
+    <Animated.View entering={FadeInDown.duration(160)} exiting={FadeOut.duration(110)} style={[s.undo, { bottom: 112 + insets.bottom }]}>
       <Text style={s.undoMsg} numberOfLines={1}>{bar.countdown ? `${bar.msg} · ${bar.left}s` : bar.msg}</Text>
       <Pressable onPress={bar.undo} hitSlop={8}><Text style={s.undoBtn}>Desfazer</Text></Pressable>
       <RNAnimated.View style={[s.undoBar, { width: w.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) }]} />

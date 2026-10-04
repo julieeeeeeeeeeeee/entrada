@@ -1,7 +1,7 @@
 import {
-  Archive, ArrowBendUpLeft, ArrowBendUpRight, CaretDown, CaretLeft, CheckCircle, DotsThree, DownloadSimple, EnvelopeSimple, Trash,
+  Archive, ArrowBendUpLeft, ArrowBendUpRight, ArrowSquareOut, Copy, CaretDown, CaretLeft, CheckCircle, DotsThree, DownloadSimple, EnvelopeSimple, Trash,
 } from 'phosphor-react-native';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,6 +13,9 @@ import { fileKind } from '../ui/icons';
 import { HtmlBody } from '../ui/HtmlBody';
 import { Avatar, IconBtn } from '../ui/parts';
 import { usePrefs } from '../settings';
+import { quickOf } from '../quick';
+import * as Clipboard from 'expo-clipboard';
+import * as Haptics from 'expo-haptics';
 
 interface Props {
   m: Mail;
@@ -89,6 +92,7 @@ export function Reader({ m, row, onClose, onCompose, onFile, onSaveAll, saved }:
                 <>
                   {msg.files.length > 0 && <Attachments files={msg.files} saved={saved} onFile={onFile} onSaveAll={onSaveAll} />}
                   {msg.unsubscribe && <Unsub header={msg.unsubscribe} onCompose={onCompose} />}
+                  <QuickCards msg={msg} onToast={m.toast} />
                   {msg.people && <People list={msg.people} />}
                   <Body msg={msg} />
                 </>
@@ -107,6 +111,47 @@ export function Reader({ m, row, onClose, onCompose, onFile, onSaveAll, saved }:
         <BarBtn label="Encaminhar" onPress={forward}><ArrowBendUpRight size={24} color={C.tx2} /></BarBtn>
       </View>
     </SafeAreaView>
+  );
+}
+
+/** código de verificação e link de acesso em cards, antes do texto: copiar ou abrir com um toque */
+function QuickCards({ msg, onToast }: { msg: Msg; onToast: (t: string) => void }) {
+  const q = useMemo(() => quickOf(msg), [msg]);
+  if (!q.codes.length && !q.links.length) return null;
+  return (
+    <View style={{ gap: 8, marginBottom: 14 }}>
+      {q.codes.map((c) => (
+        <View key={c} style={s.qc}>
+          <View style={{ flex: 1 }}>
+            <Text style={s.qk}>Código</Text>
+            <Text style={s.qcode} selectable>{c}</Text>
+          </View>
+          <Pressable
+            style={s.qbtn}
+            onPress={() => { Clipboard.setStringAsync(c.replace(/[ -]/g, '')); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {}); onToast('Código copiado'); }}
+          >
+            <Copy size={20} color="#fff" />
+            <Text style={s.qbtnTx}>Copiar</Text>
+          </Pressable>
+        </View>
+      ))}
+      {q.links.map((l) => {
+        let host = '';
+        try { host = new URL(l.url).host; } catch { /* sem host */ }
+        return (
+          <View key={l.url} style={s.qc}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.qk}>Link de acesso</Text>
+              <Text style={s.qhost} numberOfLines={1}>{host || l.url}</Text>
+            </View>
+            <Pressable style={s.qbtn} onPress={() => Linking.openURL(l.url).catch(() => {})}>
+              <ArrowSquareOut size={20} color="#fff" />
+              <Text style={s.qbtnTx}>Abrir</Text>
+            </Pressable>
+          </View>
+        );
+      })}
+    </View>
   );
 }
 
@@ -215,6 +260,12 @@ const s = StyleSheet.create({
   fm: { color: C.sec, fontFamily: F.med, fontSize: 12.5, marginTop: 1 },
   bar: { position: 'absolute', left: 48, right: 48, bottom: 24, height: 68, borderRadius: 34, backgroundColor: '#26272c', borderWidth: 1, borderColor: C.line, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', elevation: 10 },
   barBtn: { alignItems: 'center', gap: 4, width: 64 },
+  qc: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.s1, borderRadius: 18, padding: 14, paddingLeft: 18 },
+  qk: { color: C.sec, fontFamily: F.semi, fontSize: 12, letterSpacing: 0.5, textTransform: 'uppercase' },
+  qcode: { color: C.tx, fontFamily: F.bold, fontSize: 28, letterSpacing: 3, marginTop: 2 },
+  qhost: { color: C.tx, fontFamily: F.semi, fontSize: 16, marginTop: 4 },
+  qbtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.ac, height: 44, paddingHorizontal: 16, borderRadius: 22 },
+  qbtnTx: { color: '#fff', fontFamily: F.bold, fontSize: 14 },
   people: { backgroundColor: C.s1, borderRadius: 16, padding: 14, gap: 10, marginBottom: 12 },
   peopleK: { color: C.sec, fontFamily: F.semi, fontSize: 12.5, letterSpacing: 0.5, textTransform: 'uppercase' },
   person: { flexDirection: 'row', alignItems: 'center', gap: 12 },

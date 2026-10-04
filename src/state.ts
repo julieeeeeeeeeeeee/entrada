@@ -119,7 +119,7 @@ export function useMail(provider: Provider) {
     }
   }, [provider, toast, load]);
 
-  function undoable(msg: string, commit: () => Promise<void> | void, undo: () => void, secs = 5, countdown = false) {
+  function undoable(msg: string, commit: () => Promise<void> | void, undo: () => void, secs = 4, countdown = false) {
     flush();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     pending.current = commit;
