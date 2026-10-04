@@ -46,14 +46,14 @@ jobs:
 
       - name: Gerar projeto Android
         env:
-          EXPO_PUBLIC_GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+          EXPO_PUBLIC_GOOGLE_CLIENT_ID: 1067023133332-030l6kpgu5jtctl1m3n10p2kd8boupvt.apps.googleusercontent.com
         run: npx expo prebuild --platform android --no-install
 
       - name: Compilar APK
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          EXPO_PUBLIC_GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+          EXPO_PUBLIC_GOOGLE_CLIENT_ID: 1067023133332-030l6kpgu5jtctl1m3n10p2kd8boupvt.apps.googleusercontent.com
         run: |
           cd android
           ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a

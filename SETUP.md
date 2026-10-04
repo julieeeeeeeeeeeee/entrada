@@ -30,7 +30,7 @@ Nunca publique essa pasta.
 
 ## Login com Google
 
-O app usa um *Client ID* do Google Cloud (guardado como variável `GOOGLE_CLIENT_ID` do repositório e, para testes locais, no arquivo `.env`).
+O app usa um *Client ID* do Google Cloud (público, fica no workflow `.github/workflows/build.yml` e, para testes locais, no `.env`).
 Sem ele, o app abre só em modo demonstração. O pacote do app é `br.julie.entrada`.
 
 > Na primeira vez que você entrar com o Google, aparece o aviso **"app não verificado"**. É normal em app pessoal.
