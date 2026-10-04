@@ -1,4 +1,5 @@
 // Provider real: fala com a API do Gmail.
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FS from 'expo-file-system/legacy';
 import { classify } from '../classify';
 import type { Account, Draft, FileRef, Msg, Provider, Row, Section } from '../types';
@@ -21,7 +22,7 @@ async function g(path: string, init: { method?: string; body?: unknown } = {}, t
   if (!r.ok) {
     const quota = r.status === 429 || (r.status === 403 && /quota|rate/i.test(j?.error?.message ?? ''));
     if (quota && tries > 1) {
-      await sleep(1500 * (4 - tries));
+      await sleep(4000 * (4 - tries));
       return g(path, init, tries - 1);
     }
     throw new Error(j?.error?.message ?? `Gmail ${r.status}`);
@@ -97,7 +98,7 @@ async function inlineImages(m: any): Promise<Record<string, string>> {
   return out;
 }
 
-function threadToRow(t: any, sec: Section, self: string): Row {
+function threadToRow(t: any, sec: Section, self: string, hid?: string): Row {
   const msgs: any[] = t.messages ?? [];
   const last = msgs[msgs.length - 1] ?? {};
   const who = parseAddr(header(last, sec === 'enviados' ? 'To' : 'From'));
@@ -112,6 +113,8 @@ function threadToRow(t: any, sec: Section, self: string): Row {
     subject,
     snippet: (last.snippet ?? '').replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, '&'),
     time: fmtTime(Number(last.internalDate ?? Date.now())),
+    ts: Number(last.internalDate ?? Date.now()),
+    hid,
     unread: labels.includes('UNREAD'),
     count: msgs.length,
     files: msgs.flatMap(collectFiles),
@@ -147,8 +150,22 @@ function buildRaw(d: Draft): string {
   return b64urlEncode(utf8Encode(lines.join('\r\n') + '\r\n\r\n' + body));
 }
 
+const CACHE_KEY = 'entrada.cache.v1';
+
 export function createGmailProvider(): Provider {
   let self = '';
+  // lista de cada seção: guardada no celular (só a Entrada) e na memória
+  const mem: Partial<Record<Section, Row[]>> = {};
+  let loaded = false;
+  const loadDisk = async () => {
+    if (loaded) return;
+    loaded = true;
+    try {
+      const raw = await AsyncStorage.getItem(CACHE_KEY);
+      if (raw) Object.assign(mem, JSON.parse(raw));
+    } catch { /* sem cache */ }
+  };
+  const saveDisk = () => AsyncStorage.setItem(CACHE_KEY, JSON.stringify({ inbox: mem.inbox })).catch(() => {});
   const me = async (): Promise<Account> => {
     const a = await userInfo();
     self = a.email;
@@ -192,13 +209,20 @@ export function createGmailProvider(): Provider {
     if (sec === 'lixeira') { params.append('labelIds', 'TRASH'); params.set('includeSpamTrash', 'true'); }
     if (sec === 'arquivados') query = `-in:inbox -in:sent -in:trash -in:spam -in:drafts ${query}`.trim();
     if (query) params.set('q', query);
+    await loadDisk();
     const j = await g(`/threads?${params}`);
-    const ids: string[] = (j?.threads ?? []).map((t: any) => t.id);
-    const threads = await pool(ids, 4, (id) =>
-      g(`/threads/${id}?format=full&fields=${encodeURIComponent(LIST_FIELDS)}`).catch(() => null),
+    const listed: { id: string; historyId: string }[] = j?.threads ?? [];
+    // só rebusca as conversas novas ou que mudaram (a lista já traz a "versão" de cada uma)
+    const old = new Map((q ? [] : mem[sec] ?? []).map((r) => [r.id, r]));
+    const need = listed.filter((t) => old.get(t.id)?.hid !== t.historyId);
+    const fetched = await pool(need, 3, (t) =>
+      g(`/threads/${t.id}?format=full&fields=${encodeURIComponent(LIST_FIELDS)}`).then((x) => threadToRow(x, sec, self, t.historyId)).catch(() => null),
     );
-    if (ids.length && threads.every((t) => !t)) throw new Error('O Gmail não respondeu. Tente de novo em instantes.');
-    return threads.filter(Boolean).map((t) => threadToRow(t, sec, self));
+    if (need.length && fetched.every((x) => !x) && !old.size) throw new Error('O Gmail não respondeu. Tente de novo em instantes.');
+    const byId = new Map(fetched.filter(Boolean).map((r) => [r!.id, r!]));
+    const rows = listed.map((t) => byId.get(t.id) ?? old.get(t.id)).filter(Boolean) as Row[];
+    if (!q) { mem[sec] = rows; if (sec === 'inbox') saveDisk(); }
+    return rows;
   };
 
   const modify = (id: string, add: string[], remove: string[]) =>
@@ -208,6 +232,7 @@ export function createGmailProvider(): Provider {
     kind: 'gmail',
     account: me,
     list,
+    async cached(sec) { await loadDisk(); return mem[sec] ?? null; },
     async counts() {
       const [inbox, draft, trash] = await Promise.all([g('/labels/INBOX'), g('/labels/DRAFT'), g('/labels/TRASH')]);
       return { inbox: inbox.threadsUnread ?? 0, rascunhos: draft.threadsTotal ?? 0, lixeira: trash.threadsTotal ?? 0 };

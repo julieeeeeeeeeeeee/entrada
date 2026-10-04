@@ -4,7 +4,7 @@ import {
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Mail } from '../state';
 import { C, F } from '../theme';
 import type { Draft, FileRef, Msg, Row } from '../types';
@@ -12,7 +12,7 @@ import { fmtSize } from '../util';
 import { fileKind } from '../ui/icons';
 import { HtmlBody } from '../ui/HtmlBody';
 import { Avatar, IconBtn } from '../ui/parts';
-import { usePhoto } from '../photos';
+import { usePrefs } from '../settings';
 
 interface Props {
   m: Mail;
@@ -25,6 +25,7 @@ interface Props {
 }
 
 export function Reader({ m, row, onClose, onCompose, onFile, onSaveAll, saved }: Props) {
+  const insets = useSafeAreaInsets();
   const [msgs, setMsgs] = useState<Msg[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -59,7 +60,7 @@ export function Reader({ m, row, onClose, onCompose, onFile, onSaveAll, saved }:
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 130 }}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 130 + insets.bottom }}>
         <Text style={s.subject}>{row.subject}</Text>
         {!msgs && !err && <ActivityIndicator color={C.sec} style={{ marginTop: 40 }} />}
         {err && <Text style={s.err}>{err}</Text>}
@@ -98,7 +99,7 @@ export function Reader({ m, row, onClose, onCompose, onFile, onSaveAll, saved }:
         })}
       </ScrollView>
 
-      <View style={s.bar}>
+      <View style={[s.bar, { bottom: insets.bottom + 14 }]}>
         <BarBtn label="Arquivar" onPress={done(() => m.archive(row))}><Archive size={24} color={C.tx2} /></BarBtn>
         <BarBtn label="Lixeira" onPress={done(() => m.trash(row))}><Trash size={24} color={C.tx2} /></BarBtn>
         <BarBtn label="Responder" onPress={reply}><ArrowBendUpLeft size={24} color={C.tx2} /></BarBtn>
@@ -125,9 +126,9 @@ function Unsub({ header, onCompose }: { header: string; onCompose: (d: Partial<D
 
 /** Corpo do e-mail. Imagens da internet só abrem sozinhas se o remetente for um contato seu. */
 function Body({ msg }: { msg: Msg }) {
-  const known = !!usePhoto(msg.email);
+  const { darkEmails: dark } = usePrefs();
   return msg.html
-    ? <HtmlBody html={msg.html} autoImages={!!msg.mine || known} />
+    ? <HtmlBody html={msg.html} dark={dark} />
     : <Text style={s.body} selectable>{msg.text || '(sem texto)'}</Text>;
 }
 

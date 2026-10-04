@@ -40,7 +40,7 @@ export function createDemoProvider(): Provider {
   const wait = <T,>(v: T) => new Promise<T>((r) => setTimeout(() => r(v), 150));
   const toRow = (i: Item): Row => ({
     id: i.id, kind: 'mail', name: i.name, email: i.email, subject: i.subject, snippet: i.text,
-    time: fmtTime(Date.now() - i.ago * 60000), unread: i.unread, count: i.count, cat: i.cat,
+    time: fmtTime(Date.now() - i.ago * 60000), ts: Date.now() - i.ago * 60000, unread: i.unread, count: i.count, cat: i.cat,
     files: i.files.map((f, k) => ({ id: `${i.id}-${k}`, msgId: i.id, name: f.n, mime: '', size: f.kb * 1024 })),
   });
   const find = (r: Row) => items.find((i) => i.id === r.id);

@@ -6,6 +6,7 @@ import { C, F } from '../theme';
 import type { Account } from '../types';
 import { Avatar, IconBtn } from '../ui/parts';
 import { photoCount } from '../photos';
+import { setPref, usePrefs } from '../settings';
 import { disableNotify, enableNotify, notifyEnabled } from '../notify';
 import { checkUpdate, currentVersion, downloadAndInstall, type Release } from '../update';
 
@@ -20,6 +21,7 @@ interface Props {
 export function Settings({ account, demo, found, onClose, onSignOut }: Props) {
   const [status, setStatus] = useState(found ? `Versão ${found.version} disponível.` : '');
   const [rel, setRel] = useState<Release | null>(found);
+  const prefs = usePrefs();
   const [busy, setBusy] = useState(false);
   const [notif, setNotif] = useState(false);
   const [notifMsg, setNotifMsg] = useState('');
@@ -81,6 +83,24 @@ export function Settings({ account, demo, found, onClose, onSignOut }: Props) {
         </View>
       )}
 
+      <View style={s.card}>
+        <Text style={s.k}>Aparência</Text>
+        <View style={s.opt}>
+          <View style={{ flex: 1 }}>
+            <Text style={s.optT}>Agrupar por data</Text>
+            <Text style={s.sub}>Separa a lista em Hoje, Ontem, Esta semana...</Text>
+          </View>
+          <Switch value={prefs.groupByDate} onValueChange={(v) => setPref('groupByDate', v)} trackColor={{ true: C.ac, false: C.s2 }} thumbColor="#fff" />
+        </View>
+        <View style={s.opt}>
+          <View style={{ flex: 1 }}>
+            <Text style={s.optT}>E-mails em modo escuro</Text>
+            <Text style={s.sub}>Escurece a parte colorida dos e-mails.</Text>
+          </View>
+          <Switch value={prefs.darkEmails} onValueChange={(v) => setPref('darkEmails', v)} trackColor={{ true: C.ac, false: C.s2 }} thumbColor="#fff" />
+        </View>
+      </View>
+
       {!demo && (
         <View style={s.card}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -123,6 +143,8 @@ const s = StyleSheet.create({
   nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 60, marginHorizontal: -6 },
   title: { color: C.tx, fontFamily: F.bold, fontSize: 17 },
   card: { backgroundColor: C.s1, borderRadius: 20, padding: 18, marginTop: 14, gap: 4 },
+  opt: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 10 },
+  optT: { color: C.tx, fontFamily: F.semi, fontSize: 15 },
   k: { color: C.sec, fontFamily: F.semi, fontSize: 12.5, letterSpacing: 0.6, textTransform: 'uppercase' },
   v: { color: C.tx, fontFamily: F.bold, fontSize: 18, marginTop: 4 },
   sub: { color: C.sec, fontFamily: F.med, fontSize: 13.5 },

@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as Notifications from 'expo-notifications';
 import { AppState, BackHandler, Pressable, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { deleteSaved, openFile, saveFiles } from './src/files';
 import { getAccessToken, hasSession, isConfigured, signIn, signOut } from './src/mail/auth';
 import { createDemoProvider } from './src/mail/demo';
@@ -65,6 +65,7 @@ export default function App() {
 
 function MailApp({ provider, onSignOut }: { provider: Provider; onSignOut: () => void }) {
   const m = useMail(provider);
+  const insets = useSafeAreaInsets();
   const [account, setAccount] = useState<Account | null>(null);
   const [reader, setReader] = useState<Row | null>(null);
   const [compose, setCompose] = useState<{ initial: Partial<Draft>; key: number } | null>(null);
@@ -184,7 +185,7 @@ function MailApp({ provider, onSignOut }: { provider: Provider; onSignOut: () =>
       )}
 
       {update && !settings && !reader && !compose && !file && !m.bar && (
-        <Pressable onPress={() => setSettings(true)} style={{ position: 'absolute', left: 16, right: 108, bottom: 44, backgroundColor: C.s2, borderRadius: 24, paddingVertical: 14, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', elevation: 8 }}>
+        <Pressable onPress={() => setSettings(true)} style={{ position: 'absolute', left: 16, right: 108, bottom: 34 + insets.bottom, backgroundColor: C.s2, borderRadius: 24, paddingVertical: 14, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', elevation: 8 }}>
           <Text style={{ color: C.tx, fontFamily: F.semi, fontSize: 14 }}>Nova versão {update.version}</Text>
           <Text style={{ color: C.acText, fontFamily: F.bold, fontSize: 14 }}>Atualizar</Text>
         </Pressable>

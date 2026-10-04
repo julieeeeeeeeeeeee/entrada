@@ -23,6 +23,8 @@ export interface Row {
   time: string;
   unread: boolean;
   count: number; // quantidade de e-mails na conversa (>1 mostra o número)
+  ts?: number; // data da última mensagem (para agrupar por data)
+  hid?: string; // versão da conversa no Gmail (para só rebuscar o que mudou)
   files: FileRef[];
   cat: CatKey;
   // só para rascunhos
@@ -63,6 +65,8 @@ export interface Provider {
   kind: 'demo' | 'gmail';
   account(): Promise<Account>;
   list(sec: Section, q?: string): Promise<Row[]>;
+  /** lista guardada no celular, para mostrar na hora enquanto atualiza */
+  cached?(sec: Section): Promise<Row[] | null>;
   counts(): Promise<Partial<Record<Section, number>>>;
   thread(row: Row): Promise<Msg[]>;
   archive(row: Row): Promise<void>;

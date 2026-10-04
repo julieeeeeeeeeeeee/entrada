@@ -83,11 +83,11 @@ function RowItemBase({ row, sec, onOpen, onRight, onLeft, onFile }: Props) {
 export const RowItem = memo(RowItemBase);
 
 const s = StyleSheet.create({
-  row: { flexDirection: 'row', gap: 12, paddingVertical: 10, paddingLeft: 16, paddingRight: 18, backgroundColor: C.bg },
+  row: { flexDirection: 'row', gap: 14, paddingVertical: 11, paddingLeft: 22, paddingRight: 24, backgroundColor: C.bg },
   l1: { flexDirection: 'row', alignItems: 'center' },
   nm: { color: '#d0d0d4', fontFamily: F.med, fontSize: 13.5, flexShrink: 1 },
-  th: { marginLeft: 5, minWidth: 20, height: 18, paddingHorizontal: 6, borderRadius: 9, backgroundColor: C.s2, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.line },
-  thTx: { color: C.tx2, fontFamily: F.semi, fontSize: 11.5 },
+  th: { marginLeft: 8, minWidth: 22, height: 20, paddingHorizontal: 7, borderRadius: 10, backgroundColor: C.s2, alignItems: 'center', justifyContent: 'center' },
+  thTx: { color: C.tx2, fontFamily: F.semi, fontSize: 12, lineHeight: 16, includeFontPadding: false, textAlignVertical: 'center' },
   tm: { marginLeft: 'auto', paddingLeft: 8, color: C.sec, fontFamily: F.med, fontSize: 12.5 },
   l2: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2 },
   sj: { flex: 1, color: C.tx, fontFamily: F.bold, fontSize: 15.5, letterSpacing: -0.2 },

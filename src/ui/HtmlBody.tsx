@@ -2,7 +2,6 @@
 //  - sem scripts (removidos + bloqueados por política de segurança do navegador)
 //  - links abrem fora do app; o e-mail não consegue navegar a página
 //  - imagens da internet bloqueadas até você pedir (esconde "pixels de rastreamento")
-import { ImageSquare } from 'phosphor-react-native';
 import { useMemo, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
@@ -31,43 +30,39 @@ export function cleanHtml(h: string): string {
     .replace(/@import[^;]+;/gi, '');
 }
 
-const hasRemote = (h: string) => /<img[^>]+src\s*=\s*["']?https?:/i.test(h) || /url\(\s*["']?https?:/i.test(h);
-
-export function HtmlBody({ html, autoImages }: { html: string; autoImages: boolean }) {
-  const [show, setShow] = useState(autoImages);
+export function HtmlBody({ html, dark }: { html: string; dark: boolean }) {
+  const show = true; // imagens sempre aparecem
   const [height, setHeight] = useState(60);
-  const remote = useMemo(() => hasRemote(html), [html]);
 
   const doc = useMemo(() => {
-    const img = show ? "img-src data: https: http:" : 'img-src data:';
+    // modo escuro: inverte as cores da página inteira e "desinverte" as imagens, pra fotos e logos ficarem normais.
+    // O fundo #e4e3df invertido vira exatamente o fundo do app (#1b1c20).
+    const darkCss = dark
+      ? `html{filter:invert(1) hue-rotate(180deg)}img,video,picture,svg,[style*="background-image"]{filter:invert(1) hue-rotate(180deg)}`
+      : '';
     return `<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; ${img}; style-src 'unsafe-inline'; font-src data:; script-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: https: http:; style-src 'unsafe-inline'; font-src data:; script-src 'none'">
 <style>
-html,body{margin:0;padding:0;background:#fff;color:#1b1c20;font:15px/1.5 -apple-system,Roboto,Helvetica,Arial,sans-serif;overflow-wrap:anywhere;word-break:break-word}
-body{padding:14px}
+html{background:${dark ? '#e4e3df' : '#fff'}}
+html,body{margin:0;padding:0;color:#1b1c20;font:15px/1.5 -apple-system,Roboto,Helvetica,Arial,sans-serif;overflow-wrap:anywhere;word-break:break-word}
+body{padding:14px 16px}
 img{max-width:100%!important;height:auto!important}
 table{max-width:100%!important}
 a{color:#1a56db}
 pre{white-space:pre-wrap}
+${darkCss}
 </style></head><body>${cleanHtml(html)}</body></html>`;
-  }, [html, show]);
+  }, [html, dark]);
 
   return (
     <View>
-      {remote && !show && (
-        <Pressable style={s.banner} onPress={() => setShow(true)}>
-          <ImageSquare size={18} color={C.tx2} />
-          <Text style={s.bannerTx}>Imagens bloqueadas para proteger sua privacidade</Text>
-          <Text style={s.bannerBtn}>Mostrar</Text>
-        </Pressable>
-      )}
-      <View style={s.card}>
+      <View style={[s.card, { backgroundColor: dark ? C.bg : '#fff' }]}>
         <WebView
-          key={show ? 'img' : 'noimg'}
+          key={dark ? 'dark' : 'light'}
           originWhitelist={['*']}
           source={{ html: doc }}
-          style={{ height, backgroundColor: '#fff' }}
+          style={{ height, backgroundColor: dark ? C.bg : '#fff' }}
           scrollEnabled={false}
           javaScriptEnabled
           domStorageEnabled={false}
@@ -88,7 +83,7 @@ pre{white-space:pre-wrap}
 }
 
 const s = StyleSheet.create({
-  card: { borderRadius: 16, overflow: 'hidden', backgroundColor: '#fff' },
+  card: { borderRadius: 16, overflow: 'hidden' },
   banner: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.s1, borderRadius: 14, paddingVertical: 11, paddingHorizontal: 14, marginBottom: 10 },
   bannerTx: { flex: 1, color: C.sec, fontFamily: F.med, fontSize: 12.5 },
   bannerBtn: { color: C.acText, fontFamily: F.bold, fontSize: 13 },

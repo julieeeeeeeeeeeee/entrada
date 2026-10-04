@@ -42,9 +42,17 @@ export function useMail(provider: Provider) {
     noteTimer.current = setTimeout(() => setNote(null), 2600);
   }, []);
 
-  const load = useCallback(async (quiet = false) => {
+  const lastLoad = useRef(0);
+  const load = useCallback(async (quiet = false, force = false) => {
+    // voltar pro app não rebusca tudo: no máximo uma vez por minuto (puxar a lista pra baixo força)
+    if (quiet && !force && Date.now() - lastLoad.current < 60_000 && rowsRef.current.length > 0) return;
+    lastLoad.current = Date.now();
     const id = ++loadId.current;
-    if (!quiet) setLoading(true);
+    if (!quiet) {
+      setLoading(true);
+      // mostra na hora o que já estava guardado no celular, enquanto atualiza
+      provider.cached?.(secRef.current).then((c) => { if (c && id === loadId.current && rowsRef.current.length === 0) setRows(c); }).catch(() => {});
+    }
     try {
       const r = await provider.list(secRef.current, queryRef.current || undefined);
       if (id !== loadId.current) return;
@@ -66,9 +74,10 @@ export function useMail(provider: Provider) {
     queryRef.current = q;
     setQueryState(q);
     if (searchTimer.current) clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => load(), 450); // busca sozinha enquanto você digita
+    // busca sozinha enquanto você digita (com pausa e a partir de 3 letras, pra não gastar a cota do Gmail)
+    if (q.length === 0 || q.length >= 3) searchTimer.current = setTimeout(() => load(false, true), 800);
   };
-  const search = () => { if (searchTimer.current) clearTimeout(searchTimer.current); load(); };
+  const search = () => { if (searchTimer.current) clearTimeout(searchTimer.current); load(false, true); };
 
   const flush = useCallback(() => {
     if (timer.current) { clearInterval(timer.current); timer.current = null; }

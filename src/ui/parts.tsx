@@ -7,6 +7,7 @@ import type { Bar } from '../state';
 import { C, F } from '../theme';
 import type { CatKey } from '../types';
 import { usePhoto } from '../photos';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { initials } from '../util';
 import { CAT } from './icons';
 
@@ -95,9 +96,10 @@ export function UndoBar({ bar }: { bar: Bar | null }) {
     w.setValue(1);
     RNAnimated.timing(w, { toValue: 0, duration: bar.secs * 1000, easing: Easing.linear, useNativeDriver: false }).start();
   }, [bar?.key]); // eslint-disable-line react-hooks/exhaustive-deps
+  const insets = useSafeAreaInsets();
   if (!bar) return null;
   return (
-    <Animated.View entering={SlideInDown.springify().damping(18).stiffness(220)} exiting={FadeOut.duration(140)} style={s.undo}>
+    <Animated.View entering={SlideInDown.springify().damping(18).stiffness(220)} exiting={FadeOut.duration(140)} style={[s.undo, { bottom: 112 + insets.bottom }]}>
       <Text style={s.undoMsg} numberOfLines={1}>{bar.countdown ? `${bar.msg} · ${bar.left}s` : bar.msg}</Text>
       <Pressable onPress={bar.undo} hitSlop={8}><Text style={s.undoBtn}>Desfazer</Text></Pressable>
       <RNAnimated.View style={[s.undoBar, { width: w.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) }]} />
@@ -106,9 +108,10 @@ export function UndoBar({ bar }: { bar: Bar | null }) {
 }
 
 export function Toast({ note }: { note: string | null }) {
+  const insets = useSafeAreaInsets();
   if (!note) return null;
   return (
-    <Animated.View entering={FadeInDown.duration(200)} exiting={FadeOut.duration(160)} style={s.toast} pointerEvents="none">
+    <Animated.View entering={FadeInDown.duration(200)} exiting={FadeOut.duration(160)} style={[s.toast, { bottom: 112 + insets.bottom }]} pointerEvents="none">
       <Text style={s.toastTx}>{note}</Text>
     </Animated.View>
   );

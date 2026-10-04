@@ -100,6 +100,20 @@ export function fmtTime(ms: number, now = Date.now()): string {
   return `${p(d.getDate())}.${p(d.getMonth() + 1)}`;
 }
 
+const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+/** nome do grupo de datas: Hoje, Ontem, Esta semana, Este mês ou "setembro de 2026" */
+export function dateGroup(ms: number | undefined, now = Date.now()): string {
+  if (!ms) return 'Antes';
+  const d = new Date(ms), n = new Date(now);
+  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((day(n) - day(d)) / 86400000);
+  if (diff <= 0) return 'Hoje';
+  if (diff === 1) return 'Ontem';
+  if (diff < 7) return 'Esta semana';
+  if (d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth()) return 'Este mês';
+  return `${MESES[d.getMonth()]} de ${d.getFullYear()}`;
+}
+
 export function fmtDateLong(ms: number): string {
   const d = new Date(ms);
   const p = (x: number) => String(x).padStart(2, '0');
