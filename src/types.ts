@@ -44,6 +44,7 @@ export interface Msg {
   html?: string; // versão HTML do e-mail (quando existe)
   unsubscribe?: string; // cabeçalho List-Unsubscribe
   people?: { name: string; email: string; org?: boolean }[]; // convidados de um convite do Google Agenda
+  invite?: { uid: string; title: string; when: string; where?: string; status: string; canRsvp: boolean }; // dados do convite
 }
 
 export interface Draft {
@@ -75,6 +76,8 @@ export interface Provider {
   counts(): Promise<Partial<Record<Section, number>>>;
   thread(row: Row): Promise<Msg[]>;
   archive(row: Row): Promise<void>;
+  /** responde a um convite do Google Agenda */
+  rsvp?(uid: string, answer: 'accepted' | 'declined' | 'tentative'): Promise<void>;
   /** arquiva e-mails já lidos com mais de `days` dias; devolve quantos */
   autoArchive?(days: number): Promise<number>;
   trash(row: Row): Promise<void>;

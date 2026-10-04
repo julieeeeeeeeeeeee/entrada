@@ -93,6 +93,7 @@ export function Reader({ m, row, onClose, onCompose, onFile, onSaveAll, saved }:
                   {msg.files.length > 0 && <Attachments files={msg.files} saved={saved} onFile={onFile} onSaveAll={onSaveAll} />}
                   {msg.unsubscribe && <Unsub header={msg.unsubscribe} onCompose={onCompose} />}
                   <QuickCards msg={msg} onToast={m.toast} />
+                  {msg.invite && <InviteCard inv={msg.invite} rsvp={m.rsvp} onToast={m.toast} />}
                   {msg.people && <People list={msg.people} />}
                   <Body msg={msg} />
                 </>
@@ -151,6 +152,52 @@ function QuickCards({ msg, onToast }: { msg: Msg; onToast: (t: string) => void }
           </View>
         );
       })}
+    </View>
+  );
+}
+
+const ANSWERS: { k: 'accepted' | 'tentative' | 'declined'; label: string }[] = [
+  { k: 'accepted', label: 'Aceitar' },
+  { k: 'tentative', label: 'Talvez' },
+  { k: 'declined', label: 'Recusar' },
+];
+
+/** convite do Google Agenda: título, quando, onde e botões para responder */
+function InviteCard({ inv, rsvp, onToast }: { inv: NonNullable<Msg['invite']>; rsvp?: Mail['rsvp']; onToast: (t: string) => void }) {
+  const [status, setStatus] = useState(
+    inv.status === 'ACCEPTED' ? 'accepted' : inv.status === 'DECLINED' ? 'declined' : inv.status === 'TENTATIVE' ? 'tentative' : '',
+  );
+  const [busy, setBusy] = useState('');
+  const answer = async (k: 'accepted' | 'tentative' | 'declined') => {
+    if (!rsvp || busy || k === status) return;
+    setBusy(k);
+    try {
+      await rsvp(inv.uid, k);
+      setStatus(k);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      onToast(k === 'accepted' ? 'Você aceitou o convite' : k === 'declined' ? 'Você recusou o convite' : 'Respondido: talvez');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      onToast(msg === 'sem-permissao' ? 'Para responder, saia da conta e entre de novo (Configurações).' : `Não deu certo: ${msg}`);
+    } finally { setBusy(''); }
+  };
+  return (
+    <View style={s.inv}>
+      <Text style={s.invT}>{inv.title}</Text>
+      {!!inv.when && <Text style={s.invS}>{inv.when}</Text>}
+      {!!inv.where && <Text style={s.invS} numberOfLines={2}>{inv.where}</Text>}
+      {inv.canRsvp && rsvp && (
+        <View style={s.invRow}>
+          {ANSWERS.map((a) => {
+            const on = status === a.k;
+            return (
+              <Pressable key={a.k} style={[s.invBtn, on && { backgroundColor: C.ac }]} onPress={() => answer(a.k)}>
+                {busy === a.k ? <ActivityIndicator size="small" color="#fff" /> : <Text style={[s.invBtnTx, on && { color: '#fff' }]}>{a.label}</Text>}
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
     </View>
   );
 }
@@ -266,6 +313,12 @@ const s = StyleSheet.create({
   qhost: { color: C.tx, fontFamily: F.semi, fontSize: 16, marginTop: 4 },
   qbtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.ac, height: 44, paddingHorizontal: 16, borderRadius: 22 },
   qbtnTx: { color: '#fff', fontFamily: F.bold, fontSize: 14 },
+  inv: { backgroundColor: C.s1, borderRadius: 18, padding: 16, gap: 4, marginBottom: 12 },
+  invT: { color: C.tx, fontFamily: F.bold, fontSize: 18 },
+  invS: { color: C.sec, fontFamily: F.med, fontSize: 14 },
+  invRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  invBtn: { flex: 1, height: 42, borderRadius: 21, backgroundColor: C.s2, alignItems: 'center', justifyContent: 'center' },
+  invBtnTx: { color: C.tx, fontFamily: F.bold, fontSize: 14 },
   people: { backgroundColor: C.s1, borderRadius: 16, padding: 14, gap: 10, marginBottom: 12 },
   peopleK: { color: C.sec, fontFamily: F.semi, fontSize: 12.5, letterSpacing: 0.5, textTransform: 'uppercase' },
   person: { flexDirection: 'row', alignItems: 'center', gap: 12 },

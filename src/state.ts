@@ -181,6 +181,7 @@ export function useMail(provider: Provider) {
   return {
     sec, setSec, query, setQuery, search, rows, loading, error, counts, bar, note, toast,
     hasMore, loadingMore, loadMore,
+    rsvp: provider.rsvp ? (uid: string, a: 'accepted' | 'declined' | 'tentative') => provider.rsvp!(uid, a) : undefined,
     load, archive, trash, restore, unblock, block, setUnread, openThread, send, saveDraft, deleteDraft, undoable,
   };
 }

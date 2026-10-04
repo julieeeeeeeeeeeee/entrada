@@ -151,21 +151,63 @@ function buildRaw(d: Draft): string {
   return b64urlEncode(utf8Encode(lines.join('\r\n') + '\r\n\r\n' + body));
 }
 
-/** lê os convidados de um convite (arquivo .ics do Google Agenda) */
-function invitePeople(ics: string | null): Msg['people'] {
-  if (!ics) return undefined;
+const DIAS = ['dom.', 'seg.', 'ter.', 'qua.', 'qui.', 'sex.', 'sáb.'];
+const MESES_C = ['jan.', 'fev.', 'mar.', 'abr.', 'mai.', 'jun.', 'jul.', 'ago.', 'set.', 'out.', 'nov.', 'dez.'];
+
+/** "20261010T140000" ou "20261010T170000Z" ou "20261010" (dia inteiro) */
+function icsDate(v: string): { d: Date; allDay: boolean } | null {
+  const m = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(Z?))?$/.exec(v.trim());
+  if (!m) return null;
+  const [, y, mo, da, h, mi, , z] = m;
+  if (!h) return { d: new Date(+y, +mo - 1, +da), allDay: true };
+  const d = z ? new Date(Date.UTC(+y, +mo - 1, +da, +h, +mi)) : new Date(+y, +mo - 1, +da, +h, +mi);
+  return { d, allDay: false };
+}
+
+const two = (n: number) => String(n).padStart(2, '0');
+
+/** "dom., 10 de out. · 14:00–15:00" */
+function whenText(a: ReturnType<typeof icsDate>, b: ReturnType<typeof icsDate>): string {
+  if (!a) return '';
+  const day = `${DIAS[a.d.getDay()]}, ${a.d.getDate()} de ${MESES_C[a.d.getMonth()]}`;
+  if (a.allDay) return `${day} · dia inteiro`;
+  const hm = (x: Date) => `${two(x.getHours())}:${two(x.getMinutes())}`;
+  return `${day} · ${hm(a.d)}${b && !b.allDay ? `–${hm(b.d)}` : ''}`;
+}
+
+/** lê um convite (arquivo .ics do Google Agenda): convidados e dados do evento */
+function parseInvite(ics: string | null, self: string): { people?: Msg['people']; invite?: Msg['invite'] } {
+  if (!ics) return {};
+  const lines = ics.replace(/\r?\n[ \t]/g, '').split(/\r?\n/);
+  const val = (name: string) => {
+    const l = lines.find((x) => x.startsWith(`${name}:`) || x.startsWith(`${name};`));
+    return l ? l.slice(l.indexOf(':', name.length) + 1).replace(/\\n/g, ' ').replace(/\\,/g, ',').trim() : '';
+  };
   const out: NonNullable<Msg['people']> = [];
   const seen = new Set<string>();
-  for (const line of ics.replace(/\r?\n[ \t]/g, '').split(/\r?\n/)) {
+  let myStatus = '';
+  for (const line of lines) {
     const org = line.startsWith('ORGANIZER');
     if (!org && !line.startsWith('ATTENDEE')) continue;
     const email = /mailto:([^\s;]+)/i.exec(line)?.[1]?.toLowerCase();
     if (!email || seen.has(email) || email.includes('calendar.google.com')) continue;
     seen.add(email);
+    if (email === self.toLowerCase()) myStatus = /PARTSTAT=([A-Z-]+)/.exec(line)?.[1] ?? '';
     const cn = /CN=("([^"]*)"|[^;:]*)/i.exec(line);
     out.push({ name: (cn?.[2] ?? cn?.[1] ?? '').trim() || email.split('@')[0], email, org });
   }
-  return out.length ? out : undefined;
+  const uid = val('UID');
+  const method = val('METHOD');
+  const start = icsDate(val('DTSTART'));
+  const invite: Msg['invite'] = uid && val('SUMMARY') ? {
+    uid,
+    title: val('SUMMARY'),
+    when: whenText(start, icsDate(val('DTEND'))),
+    where: val('LOCATION') || undefined,
+    status: myStatus,
+    canRsvp: method === 'REQUEST' && !!myStatus,
+  } : undefined;
+  return { people: out.length ? out : undefined, invite };
 }
 
 const CACHE_KEY = 'entrada.cache.v1';
@@ -275,10 +317,24 @@ export function createGmailProvider(): Provider {
           id: m.id, name: from.name, email: from.email, to: header(m, 'To'),
           date: fmtDateLong(Number(m.internalDate)), text: bodyText(m.payload), html, files: collectFiles(m),
           unsubscribe: header(m, 'List-Unsubscribe') || undefined,
-          people: invitePeople(findPart(m.payload, 'text/calendar')),
+          ...parseInvite(findPart(m.payload, 'text/calendar'), self),
           messageIdHeader: header(m, 'Message-ID') || header(m, 'Message-Id'), mine: from.email === self.toLowerCase(),
         };
       }));
+    },
+    /** responde a um convite pela API da Agenda (precisa da permissão "calendar.events") */
+    async rsvp(uid, answer) {
+      const headers = { Authorization: `Bearer ${await getAccessToken()}`, 'Content-Type': 'application/json' };
+      const cal = 'https://www.googleapis.com/calendar/v3/calendars/primary/events';
+      const r = await fetch(`${cal}?iCalUID=${encodeURIComponent(uid)}`, { headers });
+      if (r.status === 403 || r.status === 401) throw new Error('sem-permissao');
+      const j = await r.json().catch(() => null);
+      if (!r.ok) throw new Error(j?.error?.message ?? `Agenda ${r.status}`);
+      const ev = j?.items?.[0];
+      if (!ev) throw new Error('Esse evento não está na sua agenda.');
+      const attendees = (ev.attendees ?? []).map((a: any) => (a.self ? { ...a, responseStatus: answer } : a));
+      const u = await fetch(`${cal}/${ev.id}?sendUpdates=all`, { method: 'PATCH', headers, body: JSON.stringify({ attendees }) });
+      if (!u.ok) throw new Error(`Agenda ${u.status}`);
     },
     archive: (row) => modify(row.id, [], ['INBOX']),
     async autoArchive(days) {

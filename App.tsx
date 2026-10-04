@@ -174,7 +174,7 @@ function MailApp({ provider, onSignOut }: { provider: Provider; onSignOut: () =>
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
-      <Inbox m={m} onOpen={open} onCompose={() => openCompose()} onSettings={() => setSettings(true)} onFile={(f) => { m.toast('Abrindo anexo…'); openAttachment(f); }} />
+      <Inbox m={m} onOpen={open} onCompose={() => openCompose()} onSettings={() => setSettings(true)} onFile={setFile} />
 
       {reader && (
         <Slide>
@@ -200,7 +200,7 @@ function MailApp({ provider, onSignOut }: { provider: Provider; onSignOut: () =>
       {file && (
         <Slide from="bottom">
           <FileViewer
-            file={file} saved={saved.has(file.id)} onClose={() => setFile(null)} onOpen={openAttachment}
+            file={file} saved={saved.has(file.id)} onClose={() => setFile(null)} onOpen={openAttachment} load={(f) => provider.attachment(f)}
             onSave={async (f) => saveAll([f])}
           />
         </Slide>

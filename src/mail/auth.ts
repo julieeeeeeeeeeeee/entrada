@@ -16,6 +16,7 @@ const SCOPES = [
   'https://www.googleapis.com/auth/gmail.modify', // ler, arquivar, lixeira, rascunhos e enviar
   'https://www.googleapis.com/auth/gmail.settings.basic', // criar filtro para bloquear remetente
   'https://www.googleapis.com/auth/contacts.readonly', // fotos dos seus contatos
+  'https://www.googleapis.com/auth/calendar.events', // aceitar/recusar convites
   'https://www.googleapis.com/auth/contacts.other.readonly', // fotos de quem já trocou e-mail com você
 ];
 
