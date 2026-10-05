@@ -38,6 +38,20 @@
           "icon": "./assets/android-icon-monochrome.png",
           "color": "#1877f2"
         }
+      ],
+      [
+        "react-native-notify-kit",
+        {
+          "android": {
+            "icons": [
+              {
+                "name": "notification_small",
+                "path": "./assets/android-icon-monochrome.png",
+                "type": "small"
+              }
+            ]
+          }
+        }
       ]
     ]
   }

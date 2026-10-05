@@ -3,7 +3,9 @@
 // e, se tiver e-mail novo não lido, mostra uma notificação. (Aviso na hora exigiria um servidor do Google Pub/Sub.)
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as BackgroundTask from 'expo-background-task';
+import * as Crypto from 'expo-crypto';
 import * as Notifications from 'expo-notifications';
+import notifee, { AndroidImportance, EventType } from 'react-native-notify-kit';
 import * as TaskManager from 'expo-task-manager';
 import { getAccessToken, hasSession, isConfigured } from './mail/auth';
 import { parseAddr } from './util';
@@ -53,30 +55,56 @@ export async function checkNewMail(): Promise<number> {
     const h = (n: string) => last.payload?.headers?.find((x: any) => x.name.toLowerCase() === n)?.value ?? '';
     const from = parseAddr(h('from'));
     const subject = h('subject') || '(sem assunto)';
-    await Notifications.scheduleNotificationAsync({
-      content: { title: from.name, body: `${subject}\n${(last.snippet ?? '').slice(0, 120)}`, data: { threadId: t.id, subject } },
-      trigger: { channelId: 'mail' },
-    });
+    await showMail(from.name, `${subject}\n${(last.snippet ?? '').slice(0, 120)}`, { threadId: t.id, subject, email: from.email }, from.email);
   }
-  if (fresh.length > 4) {
-    await Notifications.scheduleNotificationAsync({
-      content: { title: 'Entrada', body: `Mais ${fresh.length - 4} e-mails novos` },
-      trigger: { channelId: 'mail' },
-    });
-  }
+  if (fresh.length > 4) await showMail('Entrada', `Mais ${fresh.length - 4} e-mails novos`, {});
   return fresh.length;
 }
 
-const CATEGORY = 'mail-actions';
 export const ACTION_READ = 'read';
 export const ACTION_BLOCK = 'block';
+const KEY_PHOTOS = 'entrada.photos.v1';
 
-/** botões da notificação: marcar como lida e bloquear remetente (sem abrir o app) */
-async function setupActions() {
-  await Notifications.setNotificationCategoryAsync(CATEGORY, [
-    { identifier: ACTION_READ, buttonTitle: 'Marcar como lido', options: { opensAppToForeground: false } },
-    { identifier: ACTION_BLOCK, buttonTitle: 'Bloquear remetente', options: { opensAppToForeground: false, isDestructive: true } },
-  ]);
+/** foto do remetente: dos seus contatos (guardada no celular) ou do Gravatar, se existir */
+async function photoFor(email: string): Promise<string | undefined> {
+  const e = email.trim().toLowerCase();
+  if (!e) return undefined;
+  try {
+    const raw = await AsyncStorage.getItem(KEY_PHOTOS);
+    const m = raw ? JSON.parse(raw) : {};
+    if (m[e]) return m[e];
+  } catch { /* sem fotos guardadas */ }
+  try {
+    const h = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, e);
+    const url = `https://gravatar.com/avatar/${h}?s=192&d=404`;
+    const r = await fetch(url, { method: 'HEAD' });
+    if (r.ok) return url;
+  } catch { /* sem Gravatar */ }
+  return undefined;
+}
+
+/** mostra a notificação de e-mail: foto redonda do remetente e botões Marcar como lido / Bloquear remetente */
+async function showMail(title: string, body: string, data: Record<string, string>, email = '') {
+  await notifee.createChannel({ id: 'mail', name: 'Novos e-mails', importance: AndroidImportance.HIGH, lights: true, lightColor: '#1877f2' });
+  const largeIcon = email ? await photoFor(email) : undefined;
+  const hasThread = !!data.threadId;
+  await notifee.displayNotification({
+    title, body, data,
+    android: {
+      channelId: 'mail',
+      smallIcon: 'notification_small',
+      color: '#1877f2',
+      largeIcon,
+      circularLargeIcon: !!largeIcon,
+      pressAction: { id: 'default', launchActivity: 'default' },
+      actions: hasThread
+        ? [
+            { title: 'Marcar como lido', pressAction: { id: ACTION_READ } },
+            { title: 'Bloquear remetente', pressAction: { id: ACTION_BLOCK } },
+          ]
+        : [],
+    },
+  });
 }
 
 /** executa o botão tocado na notificação direto no Gmail */
@@ -94,12 +122,38 @@ export async function handleNotifAction(action: string, data: { threadId?: strin
       await fetch(`${BASE}/threads/${data.threadId}/trash`, { method: 'POST', headers });
     }
   } catch { /* se falhar, o e-mail continua como estava */ }
-  if (notifId) Notifications.dismissNotificationAsync(notifId).catch(() => {});
+  if (notifId) notifee.cancelNotification(notifId).catch(() => {});
 }
 
-Notifications.addNotificationResponseReceivedListener((resp) => {
-  handleNotifAction(resp.actionIdentifier, resp.notification.request.content.data as any, resp.notification.request.identifier);
-});
+// ---- toques na notificação ----
+type OpenCb = (d: { threadId: string; subject?: string }) => void;
+let openCb: OpenCb | null = null;
+const opened = new Set<string>();
+
+/** a tela principal se inscreve aqui para abrir o e-mail quando você toca na notificação */
+export function onOpenThread(cb: OpenCb) {
+  openCb = cb;
+  // app aberto direto pela notificação (estava fechado)
+  notifee.getInitialNotification().then((n) => {
+    if (n?.notification.id && !opened.has(n.notification.id)) handlePress(n.notification, n.pressAction?.id);
+  }).catch(() => {});
+  return () => { if (openCb === cb) openCb = null; };
+}
+
+function handlePress(n: { id?: string; data?: Record<string, any> } | undefined, actionId?: string) {
+  const d = n?.data as { threadId?: string; subject?: string; email?: string } | undefined;
+  if (!n || !d?.threadId) return;
+  if (actionId === ACTION_READ || actionId === ACTION_BLOCK) { handleNotifAction(actionId, d, n.id); return; }
+  if (actionId && actionId !== 'default') return;
+  if (n.id) { if (opened.has(n.id)) return; opened.add(n.id); }
+  openCb?.({ threadId: d.threadId, subject: d.subject });
+}
+
+const onEvent = async ({ type, detail }: { type: EventType; detail: { notification?: any; pressAction?: { id: string } } }) => {
+  if (type === EventType.ACTION_PRESS || type === EventType.PRESS) handlePress(detail.notification, detail.pressAction?.id);
+};
+notifee.onBackgroundEvent(onEvent as any);
+notifee.onForegroundEvent(onEvent as any);
 
 // o servidor manda um sinal silencioso: o app acorda, confere o Gmail e mostra a notificação
 TaskManager.defineTask(PUSH_TASK, async () => {
@@ -170,7 +224,6 @@ async function register() {
     importance: Notifications.AndroidImportance.HIGH,
     lightColor: '#1877f2',
   });
-  await setupActions();
   await BackgroundTask.registerTaskAsync(TASK, { minimumInterval: 15 });
   await ensureRealtime();
 }

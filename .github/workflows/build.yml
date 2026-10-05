@@ -9,6 +9,10 @@ on:
       version:
         description: 'Número da versão (ex.: 1.0.1)'
         required: true
+      teste:
+        description: 'Só testar o build (não publica na aba Releases)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -60,7 +64,16 @@ jobs:
           cd ..
           mv android/app/build/outputs/apk/release/app-release.apk "Entrada-$APP_VERSION.apk"
 
+      - name: Guardar APK de teste
+        if: ${{ inputs.teste }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Entrada-teste
+          path: Entrada-*.apk
+          retention-days: 3
+
       - name: Publicar na aba Releases
+        if: ${{ !inputs.teste }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

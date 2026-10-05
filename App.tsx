@@ -19,7 +19,7 @@ import { Reader } from './src/screens/Reader';
 import { Settings } from './src/screens/Settings';
 import { useMail } from './src/state';
 import { C, F } from './src/theme';
-import { ensureNotify } from './src/notify';
+import { ensureNotify, onOpenThread } from './src/notify';
 import { addPhotos, setPhotos } from './src/photos';
 import { checkUpdate, type Release } from './src/update';
 import type { Account, Draft, FileRef, Provider, Row } from './src/types';
@@ -110,16 +110,9 @@ function MailApp({ provider, onSignOut }: { provider: Provider; onSignOut: () =>
   }, [m.load]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // tocar numa notificação abre a conversa
-  const lastResp = Notifications.useLastNotificationResponse();
-  const handledNotif = useRef<string | null>(null);
-  useEffect(() => {
-    const d = lastResp?.notification.request.content.data as { threadId?: string; subject?: string } | undefined;
-    const id = lastResp?.notification.request.identifier;
-    if (lastResp?.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return; // botões da notificação não abrem o e-mail
-    if (!d?.threadId || !id || handledNotif.current === id) return;
-    handledNotif.current = id;
+  useEffect(() => onOpenThread((d) => {
     setReader({ id: d.threadId, kind: 'mail', name: '', email: '', subject: d.subject ?? '', snippet: '', time: '', unread: false, count: 0, files: [], cat: 'pessoas' });
-  }, [lastResp]);
+  }), []);
   useEffect(() => { checkUpdate().then(setUpdate).catch(() => {}); }, []);
   useEffect(() => {
     provider.photos?.().then(setPhotos).catch((e) => {
