@@ -137,18 +137,31 @@ async function pool<T, R>(items: T[], n: number, fn: (x: T) => Promise<R>): Prom
   return out;
 }
 
-function buildRaw(d: Draft): string {
-  const subj = /^[\x20-\x7e]*$/.test(d.subject) ? d.subject : `=?UTF-8?B?${b64encode(utf8Encode(d.subject))}?=`;
-  const body = b64encode(utf8Encode(d.body)).replace(/(.{76})/g, '$1\r\n');
-  const lines = [
-    `To: ${d.to}`,
-    `Subject: ${subj}`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset="UTF-8"',
-    'Content-Transfer-Encoding: base64',
-  ];
-  if (d.inReplyTo) lines.push(`In-Reply-To: ${d.inReplyTo}`, `References: ${d.inReplyTo}`);
-  return b64urlEncode(utf8Encode(lines.join('\r\n') + '\r\n\r\n' + body));
+/** nome de arquivo/assunto com acento: formato MIME "=?UTF-8?B?...?=" */
+const mimeWord = (t: string) => (/^[\x20-\x7e]*$/.test(t) && !/["\\]/.test(t) ? t : `=?UTF-8?B?${b64encode(utf8Encode(t))}?=`);
+
+async function buildRaw(d: Draft): Promise<string> {
+  const text = b64encode(utf8Encode(d.body)).replace(/(.{76})/g, '$1\r\n');
+  const head = [`To: ${d.to}`, `Subject: ${mimeWord(d.subject)}`, 'MIME-Version: 1.0'];
+  if (d.inReplyTo) head.push(`In-Reply-To: ${d.inReplyTo}`, `References: ${d.inReplyTo}`);
+  const atts = d.attachments ?? [];
+  if (!atts.length) {
+    head.push('Content-Type: text/plain; charset="UTF-8"', 'Content-Transfer-Encoding: base64');
+    return b64urlEncode(utf8Encode(head.join('\r\n') + '\r\n\r\n' + text));
+  }
+  // com anexos: e-mail em várias partes (texto + cada arquivo)
+  const bd = `=_entrada_${Date.now().toString(36)}`;
+  head.push(`Content-Type: multipart/mixed; boundary="${bd}"`);
+  const parts = [`--${bd}\r\nContent-Type: text/plain; charset="UTF-8"\r\nContent-Transfer-Encoding: base64\r\n\r\n${text}`];
+  for (const a of atts) {
+    const b64 = await FS.readAsStringAsync(a.uri, { encoding: FS.EncodingType.Base64 });
+    const nm = mimeWord(a.name);
+    parts.push(
+      `--${bd}\r\nContent-Type: ${a.mime || 'application/octet-stream'}; name="${nm}"\r\n` +
+      `Content-Disposition: attachment; filename="${nm}"\r\nContent-Transfer-Encoding: base64\r\n\r\n${b64.replace(/(.{76})/g, '$1\r\n')}`,
+    );
+  }
+  return b64urlEncode(utf8Encode(head.join('\r\n') + '\r\n\r\n' + parts.join('\r\n') + `\r\n--${bd}--`));
 }
 
 const DIAS = ['dom.', 'seg.', 'ter.', 'qua.', 'qui.', 'sex.', 'sáb.'];
@@ -365,11 +378,11 @@ export function createGmailProvider(): Provider {
       await modify(row.id, unread ? ['UNREAD'] : [], unread ? [] : ['UNREAD']);
     },
     async send(d) {
-      await g('/messages/send', { method: 'POST', body: { raw: buildRaw(d), threadId: d.threadId } });
+      await g('/messages/send', { method: 'POST', body: { raw: await buildRaw(d), threadId: d.threadId } });
       if (d.id) await g(`/drafts/${d.id}`, { method: 'DELETE' }).catch(() => null);
     },
     async saveDraft(d) {
-      const message = { raw: buildRaw(d), threadId: d.threadId };
+      const message = { raw: await buildRaw(d), threadId: d.threadId };
       if (d.id) await g(`/drafts/${d.id}`, { method: 'PUT', body: { message } });
       else await g('/drafts', { method: 'POST', body: { message } });
     },

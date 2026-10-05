@@ -47,6 +47,14 @@ export interface Msg {
   invite?: { uid: string; title: string; when: string; where?: string; status: string; canRsvp: boolean }; // dados do convite
 }
 
+/** arquivo a anexar num e-mail que você está escrevendo */
+export interface Attach {
+  name: string;
+  mime: string;
+  uri: string; // caminho no celular
+  size: number;
+}
+
 export interface Draft {
   id?: string;
   to: string;
@@ -54,6 +62,7 @@ export interface Draft {
   body: string;
   threadId?: string;
   inReplyTo?: string;
+  attachments?: Attach[];
 }
 
 export interface Account {
