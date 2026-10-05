@@ -17,6 +17,7 @@ const BASE = 'https://gmail.googleapis.com/gmail/v1/users/me';
 const PUSH_TASK = 'entrada-push-wake';
 const KEY_WATCH = 'entrada.watchAt';
 const KEY_RT = 'entrada.realtime';
+const KEY_LAST = 'entrada.lastCheck';
 // servidor que recebe o aviso do Gmail e acorda o app (Supabase) e tópico do Google Pub/Sub
 const REGISTER_URL = 'https://ribdmjrdwwnrvfdlrxfw.supabase.co/functions/v1/entrada-push/register';
 const TOPIC = 'projects/entrada-510619/topics/gmail-push';
@@ -31,7 +32,8 @@ export const notifyEnabled = async () => (await AsyncStorage.getItem(KEY_ON)) ==
 export async function checkNewMail(): Promise<number> {
   if (!isConfigured || !(await hasSession())) return 0;
   const headers = { Authorization: `Bearer ${await getAccessToken()}` };
-  const r = await fetch(`${BASE}/threads?labelIds=INBOX&labelIds=UNREAD&maxResults=10`, { headers });
+  // toda a caixa de entrada não lida, inclusive Promoções/Social/Atualizações (nenhuma categoria é filtrada)
+  const r = await fetch(`${BASE}/threads?labelIds=INBOX&labelIds=UNREAD&maxResults=40`, { headers });
   if (!r.ok) throw new Error(`Gmail ${r.status}`);
   const threads: { id: string; historyId: string }[] = (await r.json()).threads ?? [];
 
@@ -40,10 +42,11 @@ export async function checkNewMail(): Promise<number> {
   const keyOf = (t: { id: string; historyId: string }) => `${t.id}:${t.historyId}`; // resposta nova na mesma conversa também avisa
   const fresh = threads.filter((t) => !seen.has(keyOf(t)));
   threads.forEach((t) => seen.add(keyOf(t)));
-  await AsyncStorage.setItem(KEY_SEEN, JSON.stringify([...seen].slice(-300)));
+  await AsyncStorage.setItem(KEY_SEEN, JSON.stringify([...seen].slice(-600)));
+  await AsyncStorage.setItem(KEY_LAST, JSON.stringify({ at: Date.now(), listed: threads.length, fresh: raw === null ? 0 : fresh.length }));
   if (raw === null || fresh.length === 0) return 0;
 
-  for (const t of fresh.slice(0, 4)) {
+  for (const t of fresh.slice(0, 8)) {
     const tr = await fetch(
       `${BASE}/threads/${t.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&fields=messages(snippet,payload/headers)`,
       { headers },
@@ -57,7 +60,7 @@ export async function checkNewMail(): Promise<number> {
     const subject = h('subject') || '(sem assunto)';
     await showMail(from.name, `${subject}\n${(last.snippet ?? '').slice(0, 120)}`, { threadId: t.id, subject, email: from.email }, from.email);
   }
-  if (fresh.length > 4) await showMail('Entrada', `Mais ${fresh.length - 4} e-mails novos`, {});
+  if (fresh.length > 8) await showMail('Entrada', `Mais ${fresh.length - 8} e-mails novos`, {});
   return fresh.length;
 }
 
@@ -217,6 +220,16 @@ export async function ensureRealtime(force = false): Promise<string> {
 }
 
 export const realtimeStatus = async () => (await AsyncStorage.getItem(KEY_RT)) ?? '';
+
+/** última vez que o app conferiu o Gmail em segundo plano, em frase pronta para Configurações */
+export async function lastCheckText(): Promise<string> {
+  try {
+    const j = JSON.parse((await AsyncStorage.getItem(KEY_LAST)) ?? 'null');
+    if (!j) return 'Ainda não conferiu o Gmail em segundo plano.';
+    const hora = new Date(j.at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    return `Última conferida: ${hora} — ${j.listed} não lidos na caixa, ${j.fresh} novos avisados.`;
+  } catch { return ''; }
+}
 
 async function register() {
   await Notifications.setNotificationChannelAsync('mail', {
