@@ -73,7 +73,7 @@ function RowItemBase({ row, sec, onOpen, onRight, onLeft, onFile }: Props) {
           <Prohibit size={22} color="#fff" />
         </Action>
       ) : undefined}
-      onSwipeableOpen={(dir) => (dir === 'left' ? onRight(row) : onLeft(row))}
+      onSwipeableOpen={(dir) => (dir === 'right' ? onRight(row) : onLeft(row))} // 'right' = dedo foi pra direita (painel azul)
     >
       {body}
     </ReanimatedSwipeable>
