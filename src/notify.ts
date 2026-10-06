@@ -40,28 +40,43 @@ export async function checkNewMail(): Promise<number> {
   const raw = await AsyncStorage.getItem(KEY_SEEN);
   const seen = new Set<string>(raw ? JSON.parse(raw) : []);
   const keyOf = (t: { id: string; historyId: string }) => `${t.id}:${t.historyId}`; // resposta nova na mesma conversa também avisa
+  const save = () => AsyncStorage.setItem(KEY_SEEN, JSON.stringify([...seen].slice(-600)));
   const fresh = threads.filter((t) => !seen.has(keyOf(t)));
-  threads.forEach((t) => seen.add(keyOf(t)));
-  await AsyncStorage.setItem(KEY_SEEN, JSON.stringify([...seen].slice(-600)));
-  await AsyncStorage.setItem(KEY_LAST, JSON.stringify({ at: Date.now(), listed: threads.length, fresh: raw === null ? 0 : fresh.length }));
-  if (raw === null || fresh.length === 0) return 0;
+  const log = (shown: number, erro = '') =>
+    AsyncStorage.setItem(KEY_LAST, JSON.stringify({ at: Date.now(), listed: threads.length, fresh: raw === null ? 0 : fresh.length, shown, erro }));
+  if (raw === null) { threads.forEach((t) => seen.add(keyOf(t))); await save(); await log(0); return 0; } // 1ª vez: só decora
+  if (fresh.length === 0) { await log(0); return 0; }
 
+  // só marca como "já avisado" depois que o aviso realmente apareceu; se falhar, tenta de novo na próxima conferida
+  let shown = 0;
+  let erro = '';
   for (const t of fresh.slice(0, 8)) {
-    const tr = await fetch(
-      `${BASE}/threads/${t.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&fields=messages(snippet,payload/headers)`,
-      { headers },
-    );
-    if (!tr.ok) continue;
-    const msgs: any[] = (await tr.json()).messages ?? [];
-    const last = msgs[msgs.length - 1];
-    if (!last) continue;
-    const h = (n: string) => last.payload?.headers?.find((x: any) => x.name.toLowerCase() === n)?.value ?? '';
-    const from = parseAddr(h('from'));
-    const subject = h('subject') || '(sem assunto)';
-    await showMail(from.name, `${subject}\n${(last.snippet ?? '').slice(0, 120)}`, { threadId: t.id, subject, email: from.email }, from.email);
+    try {
+      const tr = await fetch(
+        `${BASE}/threads/${t.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&fields=messages(snippet,payload/headers)`,
+        { headers },
+      );
+      if (!tr.ok) throw new Error(`Gmail ${tr.status}`);
+      const msgs: any[] = (await tr.json()).messages ?? [];
+      const last = msgs[msgs.length - 1];
+      if (!last) throw new Error('conversa vazia');
+      const h = (n: string) => last.payload?.headers?.find((x: any) => x.name.toLowerCase() === n)?.value ?? '';
+      const from = parseAddr(h('from'));
+      const subject = h('subject') || '(sem assunto)';
+      await showMail(from.name, `${subject}\n${(last.snippet ?? '').slice(0, 120)}`, { threadId: t.id, subject, email: from.email }, from.email);
+      seen.add(keyOf(t));
+      shown++;
+    } catch (e) { erro = e instanceof Error ? e.message : String(e); }
   }
-  if (fresh.length > 8) await showMail('Entrada', `Mais ${fresh.length - 8} e-mails novos`, {});
-  return fresh.length;
+  if (fresh.length > 8) {
+    try {
+      await showMail('Entrada', `Mais ${fresh.length - 8} e-mails novos`, {});
+      fresh.slice(8).forEach((t) => seen.add(keyOf(t)));
+    } catch (e) { erro = e instanceof Error ? e.message : String(e); }
+  }
+  await save();
+  await log(shown, erro);
+  return shown;
 }
 
 export const ACTION_READ = 'read';
@@ -227,7 +242,7 @@ export async function lastCheckText(): Promise<string> {
     const j = JSON.parse((await AsyncStorage.getItem(KEY_LAST)) ?? 'null');
     if (!j) return 'Ainda não conferiu o Gmail em segundo plano.';
     const hora = new Date(j.at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    return `Última conferida: ${hora} — ${j.listed} não lidos na caixa, ${j.fresh} novos avisados.`;
+    return `Última conferida: ${hora} — ${j.listed} não lidos na caixa, ${j.fresh} novos, ${j.shown ?? j.fresh} avisados.${j.erro ? ` Erro: ${j.erro}` : ''}`;
   } catch { return ''; }
 }
 
