@@ -23,9 +23,10 @@ async function g(path: string, init: { method?: string; body?: unknown } = {}, t
   if (!r.ok) {
     const quota = r.status === 429 || (r.status === 403 && /quota|rate/i.test(j?.error?.message ?? ''));
     if (quota && tries > 1) {
-      await sleep(4000 * (4 - tries));
+      await sleep(3000 * (4 - tries) * (4 - tries)); // 3s, depois 12s
       return g(path, init, tries - 1);
     }
+    if (quota) throw new Error('O Gmail pediu uma pausa (muitos pedidos seguidos). Espere cerca de 1 minuto e tente de novo.');
     throw new Error(j?.error?.message ?? `Gmail ${r.status}`);
   }
   return j;
@@ -270,12 +271,14 @@ export function createGmailProvider(): Provider {
     }
     if (sec === 'bloqueados') {
       const j = await g('/settings/filters');
-      return ((j?.filter ?? []) as any[])
+      const blocked = ((j?.filter ?? []) as any[])
         .filter((f) => f.criteria?.from && f.action?.addLabelIds?.includes('TRASH'))
         .map((f) => ({
           id: f.id, kind: 'blocked' as const, name: parseAddr(f.criteria.from).name, email: f.criteria.from,
           subject: f.criteria.from, snippet: 'Remetente bloqueado', time: '', unread: false, count: 0, files: [], cat: 'pessoas' as const,
         }));
+      mem.bloqueados = blocked; // aparece na hora na próxima vez
+      return blocked;
     }
     const params = new URLSearchParams({ maxResults: '20' });
     let query = q ?? '';
@@ -293,7 +296,7 @@ export function createGmailProvider(): Provider {
     // só rebusca as conversas novas ou que mudaram (a lista já traz a "versão" de cada uma)
     const old = new Map((q ? [] : mem[sec] ?? []).map((r) => [r.id, r]));
     const need = listed.filter((t) => old.get(t.id)?.hid !== t.historyId);
-    const fetched = await pool(need, 3, (t) =>
+    const fetched = await pool(need, 5, (t) =>
       g(`/threads/${t.id}?format=full&fields=${encodeURIComponent(LIST_FIELDS)}`).then((x) => threadToRow(x, sec, self, t.historyId)).catch(() => null),
     );
     if (need.length && fetched.every((x) => !x) && !old.size) throw new Error('O Gmail não respondeu. Tente de novo em instantes.');
@@ -363,13 +366,20 @@ export function createGmailProvider(): Provider {
       await modify(row.id, ['INBOX'], []);
     },
     async block(row) {
-      await g('/settings/filters', {
-        method: 'POST',
-        body: { criteria: { from: row.email }, action: { addLabelIds: ['TRASH'], removeLabelIds: ['INBOX'] } },
-      });
-      // joga na lixeira o que esse remetente já mandou
-      const j = await g(`/threads?q=${encodeURIComponent(`from:${row.email} in:inbox`)}&maxResults=50`);
-      await pool((j?.threads ?? []) as any[], 5, (t) => g(`/threads/${t.id}/trash`, { method: 'POST' }));
+      try {
+        await g('/settings/filters', {
+          method: 'POST',
+          body: { criteria: { from: row.email }, action: { addLabelIds: ['TRASH'], removeLabelIds: ['INBOX'] } },
+        });
+      } catch (e) {
+        // se o filtro já existe, o bloqueio já está valendo: segue pra limpar a caixa
+        if (!/already exists|já existe/i.test(e instanceof Error ? e.message : String(e))) throw e;
+      }
+      delete mem.bloqueados;
+      // joga na lixeira o que esse remetente já mandou: UMA chamada em lote (em vez de uma por conversa)
+      const j = await g(`/messages?q=${encodeURIComponent(`from:${row.email} in:inbox`)}&maxResults=100`);
+      const ids: string[] = ((j?.messages ?? []) as { id: string }[]).map((m) => m.id);
+      if (ids.length) await g('/messages/batchModify', { method: 'POST', body: { ids, addLabelIds: ['TRASH'], removeLabelIds: ['INBOX'] } });
     },
     async unblock(row) {
       await g(`/settings/filters/${row.id}`, { method: 'DELETE' });
