@@ -104,7 +104,8 @@ async function photoFor(email: string): Promise<string | undefined> {
 /** mostra a notificação de e-mail: foto redonda do remetente e botões Marcar como lido / Bloquear remetente */
 async function showMail(title: string, body: string, data: Record<string, string>, email = '') {
   await notifee.createChannel({ id: 'mail', name: 'Novos e-mails', importance: AndroidImportance.HIGH, lights: true, lightColor: '#1877f2' });
-  const photo = email ? await photoFor(email) : undefined;
+  const found = email ? await photoFor(email) : undefined;
+  const photo = found && /^https?:\/\//i.test(found) ? found : undefined; // só endereço da internet é aceito
   const hasThread = !!data.threadId;
   const build = (largeIcon?: string) => ({
     title, body, data,
@@ -112,8 +113,8 @@ async function showMail(title: string, body: string, data: Record<string, string
       channelId: 'mail',
       smallIcon: 'notification_small',
       color: '#1877f2',
-      largeIcon,
-      circularLargeIcon: !!largeIcon,
+      // a chave só existe com foto: `largeIcon: undefined` faz o notifee recusar a notificação inteira
+      ...(largeIcon ? { largeIcon, circularLargeIcon: true } : {}),
       pressAction: { id: 'default', launchActivity: 'default' },
       actions: hasThread
         ? [
