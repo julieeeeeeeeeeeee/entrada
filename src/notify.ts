@@ -104,9 +104,9 @@ async function photoFor(email: string): Promise<string | undefined> {
 /** mostra a notificação de e-mail: foto redonda do remetente e botões Marcar como lido / Bloquear remetente */
 async function showMail(title: string, body: string, data: Record<string, string>, email = '') {
   await notifee.createChannel({ id: 'mail', name: 'Novos e-mails', importance: AndroidImportance.HIGH, lights: true, lightColor: '#1877f2' });
-  const largeIcon = email ? await photoFor(email) : undefined;
+  const photo = email ? await photoFor(email) : undefined;
   const hasThread = !!data.threadId;
-  await notifee.displayNotification({
+  const build = (largeIcon?: string) => ({
     title, body, data,
     android: {
       channelId: 'mail',
@@ -123,6 +123,13 @@ async function showMail(title: string, body: string, data: Record<string, string
         : [],
     },
   });
+  // foto inválida (ex.: caminho de contato que o Android não aceita) não pode impedir o aviso: tenta de novo sem ela
+  try {
+    await notifee.displayNotification(build(photo));
+  } catch (e) {
+    if (!photo) throw e;
+    await notifee.displayNotification(build());
+  }
 }
 
 /** executa o botão tocado na notificação direto no Gmail */
