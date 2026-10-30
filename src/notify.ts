@@ -138,17 +138,20 @@ export async function handleNotifAction(action: string, data: { threadId?: strin
   if (!data?.threadId || (action !== ACTION_READ && action !== ACTION_BLOCK)) return;
   try {
     const headers = { Authorization: `Bearer ${await getAccessToken()}`, 'Content-Type': 'application/json' };
+    const send = async (url: string, body?: unknown) => {
+      const r = await fetch(url, { method: 'POST', headers, ...(body ? { body: JSON.stringify(body) } : {}) });
+      if (!r.ok) throw new Error(`Gmail ${r.status}`);
+    };
     if (action === ACTION_READ) {
-      await fetch(`${BASE}/threads/${data.threadId}/modify`, { method: 'POST', headers, body: JSON.stringify({ removeLabelIds: ['UNREAD'] }) });
+      await send(`${BASE}/threads/${data.threadId}/modify`, { removeLabelIds: ['UNREAD'] });
     } else if (data.email) {
-      await fetch(`${BASE}/settings/filters`, {
-        method: 'POST', headers,
-        body: JSON.stringify({ criteria: { from: data.email }, action: { addLabelIds: ['TRASH'], removeLabelIds: ['INBOX'] } }),
-      });
-      await fetch(`${BASE}/threads/${data.threadId}/trash`, { method: 'POST', headers });
+      await send(`${BASE}/settings/filters`, { criteria: { from: data.email }, action: { addLabelIds: ['TRASH'], removeLabelIds: ['INBOX'] } });
+      await send(`${BASE}/threads/${data.threadId}/trash`);
     }
-  } catch { /* se falhar, o e-mail continua como estava */ }
-  if (notifId) notifee.cancelNotification(notifId).catch(() => {});
+  } catch {
+    return; // se falhar, o e-mail continua como estava e a notificação fica para você tentar de novo
+  }
+  if (notifId) await notifee.cancelNotification(notifId).catch(() => {});
 }
 
 // ---- toques na notificação ----
@@ -166,17 +169,18 @@ export function onOpenThread(cb: OpenCb) {
   return () => { if (openCb === cb) openCb = null; };
 }
 
-function handlePress(n: { id?: string; data?: Record<string, any> } | undefined, actionId?: string) {
+// devolve uma promessa para o Android manter o app acordado até o botão terminar de falar com o Gmail
+async function handlePress(n: { id?: string; data?: Record<string, any> } | undefined, actionId?: string) {
   const d = n?.data as { threadId?: string; subject?: string; email?: string } | undefined;
   if (!n || !d?.threadId) return;
-  if (actionId === ACTION_READ || actionId === ACTION_BLOCK) { handleNotifAction(actionId, d, n.id); return; }
+  if (actionId === ACTION_READ || actionId === ACTION_BLOCK) { await handleNotifAction(actionId, d, n.id); return; }
   if (actionId && actionId !== 'default') return;
   if (n.id) { if (opened.has(n.id)) return; opened.add(n.id); }
   openCb?.({ threadId: d.threadId, subject: d.subject });
 }
 
 const onEvent = async ({ type, detail }: { type: EventType; detail: { notification?: any; pressAction?: { id: string } } }) => {
-  if (type === EventType.ACTION_PRESS || type === EventType.PRESS) handlePress(detail.notification, detail.pressAction?.id);
+  if (type === EventType.ACTION_PRESS || type === EventType.PRESS) await handlePress(detail.notification, detail.pressAction?.id);
 };
 notifee.onBackgroundEvent(onEvent as any);
 notifee.onForegroundEvent(onEvent as any);
